@@ -21,7 +21,7 @@
       </p>
       
       <div class="flex flex-wrap items-center justify-center gap-3.5">
-        <NuxtLink to="/login" class="inline-flex items-center gap-2 px-7 py-3.5 bg-[#582be8] hover:bg-[#471ecc] text-white font-semibold text-sm rounded-lg shadow-lg shadow-purple-600/25 transition-all duration-150 transform hover:-translate-y-0.5">
+        <NuxtLink to="/voter/login" class="inline-flex items-center gap-2 px-7 py-3.5 bg-[#582be8] hover:bg-[#471ecc] text-white font-semibold text-sm rounded-lg shadow-lg shadow-purple-600/25 transition-all duration-150 transform hover:-translate-y-0.5">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
           </svg>
