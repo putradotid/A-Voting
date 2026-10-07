@@ -353,7 +353,16 @@
                 </div>
 
                 <!-- Login -->
-                <button
+                <NuxtLink to="/admin/dashboard"
+                  class="w-full h-12 bg-[#582be8] hover:bg-[#4820ca] text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 shadow-md shadow-purple-600/15 hover:shadow-lg hover:shadow-purple-600/20 transition-all duration-200 active:scale-[0.99]"
+                >
+                  <span class="text-lg">→</span>
+
+                  <span>
+                    Masuk ke Dashboard
+                  </span>
+                </NuxtLink>
+                <!-- <button
                   type="submit"
                   class="w-full h-12 bg-[#582be8] hover:bg-[#4820ca] text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 shadow-md shadow-purple-600/15 hover:shadow-lg hover:shadow-purple-600/20 transition-all duration-200 active:scale-[0.99]"
                 >
@@ -362,7 +371,7 @@
                   <span>
                     Masuk ke Dashboard
                   </span>
-                </button>
+                </button> -->
 
               </form>
 
