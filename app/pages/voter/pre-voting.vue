@@ -1195,7 +1195,7 @@ const agreed = ref(false)
 
                   <!-- Proceed -->
                   <NuxtLink
-                    to="/voter/booth"
+                    to="/voter/voting"
                     :class="[
                       'w-full sm:w-auto inline-flex items-center justify-center gap-3 px-8 py-3 rounded-xl font-semibold text-sm transition-all',
                       agreed
