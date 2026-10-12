@@ -1,0 +1,727 @@
+```vue
+<template>
+  <div class="min-h-screen bg-[#f8f9ff] text-slate-800">
+    <!-- Sidebar -->
+    <aside class="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col justify-between border-r border-slate-200 bg-white lg:flex">
+      <div>
+        <div class="flex h-20 items-center gap-3 px-6">
+          <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-700 text-white">
+            <span class="material-symbols-outlined">how_to_vote</span>
+          </div>
+          <div>
+            <h1 class="text-xl font-bold tracking-tight">A-Vote</h1>
+            <p class="text-[10px] font-semibold uppercase tracking-widest text-violet-700">Campus System</p>
+          </div>
+        </div>
+
+        <div class="px-5 pb-2 pt-4 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+          Navigasi Utama
+        </div>
+
+        <nav class="space-y-1 px-3">
+          <a href="#" class="flex items-center gap-3 rounded-xl px-4 py-3 text-sm text-slate-600 hover:bg-slate-50">
+            <span class="material-symbols-outlined">grid_view</span>
+            Dashboard
+          </a>
+          <a href="#" class="flex items-center justify-between rounded-xl px-4 py-3 text-sm text-slate-600 hover:bg-slate-50">
+            <span class="flex items-center gap-3">
+              <span class="material-symbols-outlined">ballot</span>
+              Pemilihan
+            </span>
+            <span class="rounded-full bg-violet-50 px-2 py-0.5 text-[10px] text-violet-700">3 Aktif</span>
+          </a>
+          <a href="#" class="flex items-center justify-between rounded-xl px-4 py-3 text-sm text-slate-600 hover:bg-slate-50">
+            <span class="flex items-center gap-3">
+              <span class="material-symbols-outlined">group</span>
+              Daftar Pemilih
+            </span>
+            <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px]">DPT</span>
+          </a>
+          <a href="#" class="flex items-center justify-between rounded-xl bg-violet-100 px-4 py-3 text-sm font-semibold text-violet-800">
+            <span class="flex items-center gap-3">
+              <span class="material-symbols-outlined">badge</span>
+              Kandidat &amp; Paslon
+            </span>
+            <span class="material-symbols-outlined text-lg">chevron_right</span>
+          </a>
+          <a href="#" class="flex items-center gap-3 rounded-xl px-4 py-3 text-sm text-slate-600 hover:bg-slate-50">
+            <span class="material-symbols-outlined">analytics</span>
+            Rekapitulasi
+          </a>
+          <a href="#" class="flex items-center gap-3 rounded-xl px-4 py-3 text-sm text-slate-600 hover:bg-slate-50">
+            <span class="material-symbols-outlined">settings</span>
+            Pengaturan Sistem
+          </a>
+        </nav>
+      </div>
+
+      <div class="p-4">
+        <div class="rounded-xl bg-slate-50 p-3">
+          <div class="flex items-center gap-2 text-xs font-semibold">
+            <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
+            A-Vote v2.4.0
+          </div>
+          <p class="mt-1 text-[11px] text-slate-500">Server Siap &amp; Terhubung - Online</p>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Header -->
+    <header class="fixed left-0 right-0 top-0 z-30 flex h-20 items-center justify-between border-b border-slate-200 bg-white/95 px-5 shadow-sm backdrop-blur lg:left-64 lg:px-8">
+      <div class="flex min-w-0 items-center gap-4">
+        <h2 class="hidden whitespace-nowrap text-lg font-bold md:block">A-Vote Admin Panel</h2>
+
+        <span class="hidden items-center gap-2 rounded-full bg-violet-50 px-3 py-2 text-[10px] font-medium text-violet-800 xl:flex">
+          <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
+          Status Sistem: Aktif &amp; Normal
+        </span>
+      </div>
+
+      <div class="mx-5 hidden max-w-md flex-1 lg:block">
+        <div class="relative">
+          <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+          <input
+            type="text"
+            placeholder="Cari kandidat, paslon, nomor urut..."
+            class="w-full rounded-xl border border-transparent bg-slate-50 py-3 pl-10 pr-4 text-xs outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
+          />
+        </div>
+      </div>
+
+      <div class="flex shrink-0 items-center gap-3">
+        <button type="button" class="relative flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50 text-slate-600">
+          <span class="material-symbols-outlined">notifications</span>
+          <span class="absolute right-2 top-2 h-2 w-2 rounded-full bg-red-500"></span>
+        </button>
+
+        <div class="hidden items-center gap-2 sm:flex">
+          <div class="flex h-9 w-9 items-center justify-center rounded-full bg-violet-700 text-white">
+            <span class="material-symbols-outlined text-lg">person</span>
+          </div>
+          <div>
+            <p class="text-xs font-semibold">Super Administrator</p>
+            <p class="text-[10px] text-slate-500">admin@gmail.com</p>
+          </div>
+        </div>
+
+        <a href="#" class="flex items-center gap-1 rounded-lg px-2 py-2 text-xs font-medium text-red-600 hover:bg-red-50">
+          <span class="material-symbols-outlined text-lg">logout</span>
+          <span class="hidden sm:inline">Logout</span>
+        </a>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="min-h-screen px-4 pb-10 pt-24 sm:px-6 lg:ml-64 lg:px-8">
+      <div class="mx-auto flex max-w-[1440px] flex-col gap-7">
+
+        <!-- Page Heading -->
+        <section class="flex flex-col justify-between gap-5 xl:flex-row xl:items-center">
+          <div>
+            <div class="mb-3 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-wider text-slate-400">
+              <span>A-Vote</span>
+              <span>/</span>
+              <span>Pemilu Mahasiswa 2025</span>
+              <span>/</span>
+              <span class="font-semibold text-violet-700">Kandidat &amp; Paslon</span>
+            </div>
+
+            <h1 class="text-3xl font-bold tracking-tight sm:text-4xl">Kandidat &amp; Paslon</h1>
+            <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+              Kelola data pasangan calon dan kandidat independen, verifikasi kelengkapan berkas visi-misi, nomor urut resmi, serta status penetapan bilik suara.
+            </p>
+          </div>
+
+          <div class="flex flex-wrap gap-3">
+            <button type="button" class="flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-xs font-semibold shadow-sm hover:bg-slate-50">
+              <span class="material-symbols-outlined text-violet-700">folder_zip</span>
+              Unduh Rekap Berkas
+            </button>
+            <button type="button" class="flex items-center gap-2 rounded-xl bg-violet-700 px-4 py-3 text-xs font-semibold text-white shadow-sm hover:bg-violet-800">
+              <span class="material-symbols-outlined">add</span>
+              Tambah Paslon / Kandidat
+            </button>
+          </div>
+        </section>
+
+        <!-- Statistics -->
+        <section class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div class="rounded-2xl bg-white p-5 shadow-sm">
+            <div class="flex items-center justify-between">
+              <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Total Paslon / Kandidat</p>
+              <span class="material-symbols-outlined rounded-lg bg-violet-50 p-2 text-violet-700">groups</span>
+            </div>
+            <p class="mt-5 text-3xl font-bold">10 <span class="text-sm font-medium text-slate-500">Terdaftar</span></p>
+            <p class="mt-2 text-xs text-slate-500">Dari 4 agenda pemilihan aktif/mendatang</p>
+          </div>
+
+          <div class="rounded-2xl bg-white p-5 shadow-sm">
+            <div class="flex items-center justify-between">
+              <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Berkas Terverifikasi</p>
+              <span class="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700">80% Memenuhi</span>
+            </div>
+            <p class="mt-5 text-3xl font-bold">8 <span class="text-sm font-medium text-emerald-700">Lolos KPU</span></p>
+            <p class="mt-2 text-xs text-slate-500">Dinyatakan sah masuk bilik e-voting</p>
+          </div>
+
+          <div class="rounded-2xl bg-white p-5 shadow-sm">
+            <div class="flex items-center justify-between">
+              <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Menunggu Verifikasi</p>
+              <span class="rounded-full bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-700">2 Berkas Baru</span>
+            </div>
+            <p class="mt-5 text-3xl font-bold">2 <span class="text-sm font-medium text-amber-700">Paslon</span></p>
+            <p class="mt-2 text-xs text-slate-500">Perlu pemeriksaan berkas LPJ dan visi</p>
+          </div>
+
+          <div class="rounded-2xl bg-white p-5 shadow-sm">
+            <div class="flex items-center justify-between">
+              <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Penetapan Nomor Urut</p>
+              <span class="material-symbols-outlined rounded-lg bg-violet-50 p-2 text-violet-700">verified</span>
+            </div>
+            <p class="mt-5 text-3xl font-bold text-violet-700">Selesai <span class="text-sm">(100%)</span></p>
+            <p class="mt-2 text-xs text-slate-500">Undian nomor urut resmi tuntas</p>
+          </div>
+        </section>
+
+        <!-- Filters -->
+        <section class="flex flex-col gap-4 rounded-2xl bg-white p-4 shadow-sm xl:flex-row xl:items-center xl:justify-between">
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <select class="min-h-11 rounded-xl bg-slate-50 px-4 py-3 text-xs font-semibold outline-none focus:ring-2 focus:ring-violet-200">
+              <option>Pemilihan Raya Ketua &amp; Wakil BEM 2025 (3 Paslon)</option>
+              <option>DPM Fakultas Teknik 2025 (5 Kandidat)</option>
+              <option>HMIF Informatika 2025 (2 Paslon)</option>
+            </select>
+
+            <div class="flex gap-1 overflow-x-auto rounded-xl bg-slate-50 p-1">
+              <button type="button" class="whitespace-nowrap rounded-lg bg-white px-3 py-2 text-xs font-semibold text-violet-700 shadow-sm">Semua (3)</button>
+              <button type="button" class="whitespace-nowrap rounded-lg px-3 py-2 text-xs text-slate-600">Terverifikasi (3)</button>
+              <button type="button" class="whitespace-nowrap rounded-lg px-3 py-2 text-xs text-slate-600">Menunggu (0)</button>
+              <button type="button" class="whitespace-nowrap rounded-lg px-3 py-2 text-xs text-slate-600">Ditolak (0)</button>
+            </div>
+          </div>
+
+          <div class="flex flex-col gap-2 sm:flex-row">
+            <input
+              type="text"
+              placeholder="Cari nama paslon, NIM, nomor urut..."
+              class="min-h-11 min-w-0 rounded-xl bg-slate-50 px-4 text-xs outline-none focus:ring-2 focus:ring-violet-200 sm:w-72"
+            />
+            <button type="button" class="flex items-center justify-center gap-2 rounded-xl bg-slate-100 px-4 py-3 text-xs font-semibold hover:bg-slate-200">
+              <span class="material-symbols-outlined text-lg">swap_vert</span>
+              Atur Nomor Urut
+            </button>
+          </div>
+        </section>
+
+        <!-- BEM Candidates -->
+        <section>
+          <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex flex-wrap items-center gap-3">
+              <h2 class="text-xl font-bold">Pasangan Calon Tetap BEM 2025</h2>
+              <span class="rounded-full bg-violet-100 px-3 py-1 text-[10px] font-bold text-violet-800">3 Paslon Resmi</span>
+            </div>
+            <span class="font-mono text-[10px] text-slate-500">Bilik Suara #PEMIRA-BEM-2025</span>
+          </div>
+
+          <div class="grid grid-cols-1 gap-6 xl:grid-cols-3">
+
+            <!-- Paslon 01 -->
+            <article class="flex flex-col overflow-hidden rounded-2xl bg-white shadow-sm transition hover:shadow-lg">
+              <div class="flex-1 space-y-5 p-5">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-3">
+                    <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-700 text-2xl font-extrabold text-white">01</div>
+                    <div>
+                      <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Nomor Urut Resmi</p>
+                      <span class="mt-1 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700">
+                        <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                        Terverifikasi KPU
+                      </span>
+                    </div>
+                  </div>
+                  <button type="button" class="rounded-lg p-2 text-slate-400 hover:bg-slate-100">
+                    <span class="material-symbols-outlined">more_vert</span>
+                  </button>
+                </div>
+
+                <div class="relative h-48 overflow-hidden rounded-xl bg-violet-100">
+                  <img
+                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuBUExGpIuQjTmx2t9uax_Q5HJRcEObG8QLy91Pwz4WVcQeaT4vw3FAEZF5ZdtptXSgG0XRhi0AaGcT-45Ie2Ii51DfEgU_F3Z7jnkcUWMwnP6UtkEp5guzaiD20rUJKDdYk71aKL3j38287bX9FoWzJ5qJZC_YO4H_w1EMjuPm_g6K44vPEPtviGAAbULzHDJ8u65BGgHR4AfMHoUARCeR9j9CBJ4DFxhKiagiMctRqTV5pwdaEjiHCPA"
+                    alt="Foto pasangan calon Farhan dan Nabila"
+                    class="h-full w-full object-cover"
+                  />
+                  <div class="absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-slate-950/80 to-transparent p-4 text-white">
+                    <span class="w-fit rounded bg-violet-700/80 px-2 py-1 text-[10px] font-semibold">BEM FT-FEB</span>
+                    <h3 class="mt-2 text-lg font-bold">Farhan &amp; Nabila</h3>
+                  </div>
+                </div>
+
+                <div class="space-y-2">
+                  <div class="rounded-xl bg-slate-50 p-3">
+                    <p class="text-[10px] font-bold uppercase text-violet-700">Calon Ketua BEM</p>
+                    <p class="mt-1 text-sm font-bold">Muhammad Farhan</p>
+                    <p class="mt-1 text-xs text-slate-500">NIM 2108101012 • S1 Teknik Informatika (FT)</p>
+                  </div>
+                  <div class="rounded-xl bg-slate-50 p-3">
+                    <p class="text-[10px] font-bold uppercase text-purple-700">Calon Wakil Ketua BEM</p>
+                    <p class="mt-1 text-sm font-bold">Nabila Putri</p>
+                    <p class="mt-1 text-xs text-slate-500">NIM 2102102045 • S1 Akuntansi (FEB)</p>
+                  </div>
+                </div>
+
+                <div class="rounded-xl bg-violet-50 p-3 text-center text-sm font-semibold italic text-violet-800">
+                  “Sinergi Nyata, Berdampak Bersama”
+                </div>
+
+                <div>
+                  <p class="mb-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Pilar Program Kerja</p>
+                  <ul class="space-y-2 text-xs leading-5">
+                    <li class="flex gap-2"><span class="material-symbols-outlined text-base text-violet-700">check_circle</span><span><strong>Digitalisasi Ormawa:</strong> Satu pintu administrasi terpadu</span></li>
+                    <li class="flex gap-2"><span class="material-symbols-outlined text-base text-violet-700">check_circle</span><span><strong>Advokasi Transparan:</strong> Pelayanan UKT tanggap 24/7</span></li>
+                    <li class="flex gap-2"><span class="material-symbols-outlined text-base text-violet-700">check_circle</span><span><strong>Beasiswa Kampus:</strong> Akses pendanaan riset merata</span></li>
+                  </ul>
+                </div>
+
+                <div class="space-y-3 border-t border-slate-100 pt-4 text-xs">
+                  <div class="flex justify-between gap-2">
+                    <span class="text-slate-500">IPK &amp; SKCK</span>
+                    <span class="font-semibold text-emerald-700">Lengkap (Valid)</span>
+                  </div>
+                  <div class="flex justify-between gap-2">
+                    <span class="text-slate-500">Rekomendasi Fakultas</span>
+                    <span class="font-semibold text-emerald-700">Disetujui Dekanat</span>
+                  </div>
+                  <div class="flex justify-between gap-2">
+                    <span class="text-slate-500">Visi Misi</span>
+                    <a href="#" class="font-semibold text-violet-700 hover:underline">PDF (Unduh)</a>
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex gap-2 px-5 pb-5">
+                <button type="button" class="flex-1 rounded-xl bg-slate-100 py-3 text-xs font-semibold hover:bg-slate-200">
+                  <span class="material-symbols-outlined mr-1 inline-block align-middle text-base">visibility</span>
+                  Lihat Detail
+                </button>
+                <button type="button" class="rounded-xl bg-slate-100 px-4 py-3 text-xs font-semibold hover:bg-slate-200">
+                  <span class="material-symbols-outlined inline-block align-middle text-base">edit</span>
+                  Edit
+                </button>
+              </div>
+            </article>
+
+            <!-- Paslon 02 -->
+            <article class="flex flex-col overflow-hidden rounded-2xl bg-white shadow-sm transition hover:shadow-lg">
+              <div class="flex-1 space-y-5 p-5">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-3">
+                    <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-purple-700 text-2xl font-extrabold text-white">02</div>
+                    <div>
+                      <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Nomor Urut Resmi</p>
+                      <span class="mt-1 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700">
+                        <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                        Terverifikasi KPU
+                      </span>
+                    </div>
+                  </div>
+                  <button type="button" class="rounded-lg p-2 text-slate-400 hover:bg-slate-100">
+                    <span class="material-symbols-outlined">more_vert</span>
+                  </button>
+                </div>
+
+                <div class="relative h-48 overflow-hidden rounded-xl bg-purple-100">
+                  <img
+                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuDUZUXWyq8lHl78RSQTBsTkQzxcLwqf0PZM2ckU4ns1ZNstpAleqx4vYBT4v5V-4qB_aUIC63ui3Ai7fKkcwaWmLiCyXsyC7VGjAyCIUNojE372e86v8JTiDPOWTDSkJ8OsdjVD-grmktM7MkG0snpvLBEE4GlxSV93jPUkVWZWIdFBf2WeSM9eTuEEfkQLr5toKR0-V-wVlX2dhWvNSivJfh08fz_GkDe9gLgf-JI-Tdeb0jDCwavRPA"
+                    alt="Foto pasangan calon Dimas dan Siti"
+                    class="h-full w-full object-cover"
+                  />
+                  <div class="absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-slate-950/80 to-transparent p-4 text-white">
+                    <span class="w-fit rounded bg-purple-700/80 px-2 py-1 text-[10px] font-semibold">BEM FT-FISIP</span>
+                    <h3 class="mt-2 text-lg font-bold">Dimas &amp; Siti</h3>
+                  </div>
+                </div>
+
+                <div class="space-y-2">
+                  <div class="rounded-xl bg-slate-50 p-3">
+                    <p class="text-[10px] font-bold uppercase text-violet-700">Calon Ketua BEM</p>
+                    <p class="mt-1 text-sm font-bold">Dimas Arya Prasetya</p>
+                    <p class="mt-1 text-xs text-slate-500">NIM 2104104018 • S1 Teknik Elektro (FT)</p>
+                  </div>
+                  <div class="rounded-xl bg-slate-50 p-3">
+                    <p class="text-[10px] font-bold uppercase text-purple-700">Calon Wakil Ketua BEM</p>
+                    <p class="mt-1 text-sm font-bold">Siti Rahmawati</p>
+                    <p class="mt-1 text-xs text-slate-500">NIM 2109101099 • S1 Ilmu Komunikasi (FISIP)</p>
+                  </div>
+                </div>
+
+                <div class="rounded-xl bg-purple-50 p-3 text-center text-sm font-semibold italic text-purple-800">
+                  “Kampus Inklusif, Prestasi Berkelanjutan”
+                </div>
+
+                <div>
+                  <p class="mb-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Pilar Program Kerja</p>
+                  <ul class="space-y-2 text-xs leading-5">
+                    <li class="flex gap-2"><span class="material-symbols-outlined text-base text-purple-700">check_circle</span><span><strong>Inkubasi Karir Kreatif:</strong> Akselerasi sertifikasi industri</span></li>
+                    <li class="flex gap-2"><span class="material-symbols-outlined text-base text-purple-700">check_circle</span><span><strong>Fasilitas Disabilitas:</strong> Aksesibilitas gedung ramah difabel</span></li>
+                    <li class="flex gap-2"><span class="material-symbols-outlined text-base text-purple-700">check_circle</span><span><strong>Dana Ormawa Mandiri:</strong> Crowdfunding legal kampus</span></li>
+                  </ul>
+                </div>
+
+                <div class="space-y-3 border-t border-slate-100 pt-4 text-xs">
+                  <div class="flex justify-between gap-2">
+                    <span class="text-slate-500">IPK &amp; SKCK</span>
+                    <span class="font-semibold text-emerald-700">Lengkap &amp; Valid</span>
+                  </div>
+                  <div class="flex justify-between gap-2">
+                    <span class="text-slate-500">Rekomendasi Fakultas</span>
+                    <span class="font-semibold text-emerald-700">Disetujui Dekanat</span>
+                  </div>
+                  <div class="flex justify-between gap-2">
+                    <span class="text-slate-500">Visi Misi</span>
+                    <a href="#" class="font-semibold text-violet-700 hover:underline">PDF (Unduh)</a>
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex gap-2 px-5 pb-5">
+                <button type="button" class="flex-1 rounded-xl bg-slate-100 py-3 text-xs font-semibold hover:bg-slate-200">
+                  <span class="material-symbols-outlined mr-1 inline-block align-middle text-base">visibility</span>
+                  Lihat Detail
+                </button>
+                <button type="button" class="rounded-xl bg-slate-100 px-4 py-3 text-xs font-semibold hover:bg-slate-200">
+                  <span class="material-symbols-outlined inline-block align-middle text-base">edit</span>
+                  Edit
+                </button>
+              </div>
+            </article>
+
+            <!-- Paslon 03 -->
+            <article class="flex flex-col overflow-hidden rounded-2xl bg-white shadow-sm transition hover:shadow-lg">
+              <div class="flex-1 space-y-5 p-5">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-3">
+                    <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-700 text-2xl font-extrabold text-white">03</div>
+                    <div>
+                      <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Nomor Urut Resmi</p>
+                      <span class="mt-1 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700">
+                        <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                        Terverifikasi KPU
+                      </span>
+                    </div>
+                  </div>
+                  <button type="button" class="rounded-lg p-2 text-slate-400 hover:bg-slate-100">
+                    <span class="material-symbols-outlined">more_vert</span>
+                  </button>
+                </div>
+
+                <div class="relative h-48 overflow-hidden rounded-xl bg-slate-100">
+                  <img
+                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuCbw28c2ei6uJsELzn1ihDYFYlUoVI-imSyE6S_CCaJjz7Ihy-ylnRj8REA1TLVDfG-isUlz9M_2z1cZyUWABdA7-K6ckfkXIt7JJ-FMW0JooTfi4K_b8oXfiIXug9Fk9Uvu3otAGAC-EN0ysMdqhopur651zoEp2Swm4YXYF344f4GQsfpuF86xDA--Sf7btmi4RghcSa2PX0X0W2KQUWEvQfD5kxqoAlSBFfMA9PbXW_c1ERGHClqWQ"
+                    alt="Foto pasangan calon Bagas dan Amanda"
+                    class="h-full w-full object-cover"
+                  />
+                  <div class="absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-slate-950/80 to-transparent p-4 text-white">
+                    <span class="w-fit rounded bg-slate-700/80 px-2 py-1 text-[10px] font-semibold">BEM FH-FPSI</span>
+                    <h3 class="mt-2 text-lg font-bold">Bagas &amp; Amanda</h3>
+                  </div>
+                </div>
+
+                <div class="space-y-2">
+                  <div class="rounded-xl bg-slate-50 p-3">
+                    <p class="text-[10px] font-bold uppercase text-violet-700">Calon Ketua BEM</p>
+                    <p class="mt-1 text-sm font-bold">Bagas Wicaksono</p>
+                    <p class="mt-1 text-xs text-slate-500">NIM 2101103011 • S1 Ilmu Hukum (FH)</p>
+                  </div>
+                  <div class="rounded-xl bg-slate-50 p-3">
+                    <p class="text-[10px] font-bold uppercase text-purple-700">Calon Wakil Ketua BEM</p>
+                    <p class="mt-1 text-sm font-bold">Amanda Clarissa</p>
+                    <p class="mt-1 text-xs text-slate-500">NIM 2107102033 • S1 Psikologi (FPsi)</p>
+                  </div>
+                </div>
+
+                <div class="rounded-xl bg-slate-100 p-3 text-center text-sm font-semibold italic text-slate-800">
+                  “Integritas Tegas, Suara Mahasiswa Berdaulat”
+                </div>
+
+                <div>
+                  <p class="mb-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Pilar Program Kerja</p>
+                  <ul class="space-y-2 text-xs leading-5">
+                    <li class="flex gap-2"><span class="material-symbols-outlined text-base text-violet-700">check_circle</span><span><strong>Reformasi Regulasi:</strong> Penegakan hak konstitusi mahasiswa</span></li>
+                    <li class="flex gap-2"><span class="material-symbols-outlined text-base text-violet-700">check_circle</span><span><strong>Kolaborasi Riset:</strong> Hub saintifik lintas fakultas</span></li>
+                    <li class="flex gap-2"><span class="material-symbols-outlined text-base text-violet-700">check_circle</span><span><strong>Transparansi Anggaran:</strong> Laporan dana BEM publik</span></li>
+                  </ul>
+                </div>
+
+                <div class="space-y-3 border-t border-slate-100 pt-4 text-xs">
+                  <div class="flex justify-between gap-2">
+                    <span class="text-slate-500">IPK &amp; SKCK</span>
+                    <span class="font-semibold text-emerald-700">Lengkap &amp; Valid</span>
+                  </div>
+                  <div class="flex justify-between gap-2">
+                    <span class="text-slate-500">Rekomendasi Fakultas</span>
+                    <span class="font-semibold text-emerald-700">Disetujui Dekanat</span>
+                  </div>
+                  <div class="flex justify-between gap-2">
+                    <span class="text-slate-500">Visi Misi</span>
+                    <a href="#" class="font-semibold text-violet-700 hover:underline">PDF (Unduh)</a>
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex gap-2 px-5 pb-5">
+                <button type="button" class="flex-1 rounded-xl bg-slate-100 py-3 text-xs font-semibold hover:bg-slate-200">
+                  <span class="material-symbols-outlined mr-1 inline-block align-middle text-base">visibility</span>
+                  Lihat Detail
+                </button>
+                <button type="button" class="rounded-xl bg-slate-100 px-4 py-3 text-xs font-semibold hover:bg-slate-200">
+                  <span class="material-symbols-outlined inline-block align-middle text-base">edit</span>
+                  Edit
+                </button>
+              </div>
+            </article>
+
+          </div>
+        </section>
+
+        <!-- DPM Candidates -->
+        <section class="rounded-2xl bg-white p-5 shadow-sm sm:p-6">
+          <div class="mb-5 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+            <div>
+              <div class="flex flex-wrap items-center gap-2">
+                <h2 class="text-xl font-bold">Daftar Calon Anggota DPM FT</h2>
+                <span class="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-semibold text-slate-600">5 Kandidat</span>
+              </div>
+              <p class="mt-2 text-xs leading-5 text-slate-500">
+                Pemilihan legislatif perwakilan jurusan Fakultas Teknik: Informatika, Elektro, Sipil, dan Mesin.
+              </p>
+            </div>
+
+            <div class="flex gap-2">
+              <button type="button" class="flex items-center gap-1 rounded-xl bg-slate-100 px-3 py-2 text-xs font-semibold hover:bg-slate-200">
+                <span class="material-symbols-outlined text-base">filter_list</span>
+                Filter Jurusan
+              </button>
+              <button type="button" class="flex items-center gap-1 rounded-xl bg-violet-100 px-3 py-2 text-xs font-semibold text-violet-800 hover:bg-violet-200">
+                <span class="material-symbols-outlined text-base">person_add</span>
+                Calon DPM
+              </button>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full min-w-[850px] text-left text-xs">
+              <thead>
+                <tr class="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500">
+                  <th class="rounded-l-xl px-4 py-4">No. Urut</th>
+                  <th class="px-4 py-4">Foto &amp; Nama Calon</th>
+                  <th class="px-4 py-4">NIM &amp; Program Studi</th>
+                  <th class="px-4 py-4">Semester / IPK</th>
+                  <th class="px-4 py-4">Kelengkapan Berkas</th>
+                  <th class="px-4 py-4">Status Bilik Suara</th>
+                  <th class="rounded-r-xl px-4 py-4 text-right">Aksi KPU</th>
+                </tr>
+              </thead>
+
+              <tbody class="divide-y divide-slate-100">
+                <tr class="hover:bg-slate-50">
+                  <td class="px-4 py-4 font-bold text-violet-700">#01</td>
+                  <td class="px-4 py-4">
+                    <div class="flex items-center gap-3">
+                      <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuDgAcMU-_OxM5D1DEV3ig96Zw7hhYWdS7II7hvEPkDBlgjmNdPdHwPxtex9o0gOxta4CGj6CVIB73T6w4S6bHoK_rjVe7ed8uAABZhuFBKpLlZN8tsNbMOVj0dZJUcWGXKPLVzn2jxARMQM4ZqhxZXmKoTn32k6p2-ByX6m_K8dg8AyWI1hdVq0OTYAFtCda18vfXkr_Z5kgLNe1A7Nt_nDovaZwt1gmNmlmtnlt4BJBDpb0nh09To2zg" alt="Aldi Firmansyah" class="h-10 w-10 rounded-xl object-cover" />
+                      <div>
+                        <p class="font-semibold">Aldi Firmansyah</p>
+                        <p class="mt-1 text-[10px] text-slate-500">Departemen TI</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="px-4 py-4">
+                    <p class="font-mono">2208101004</p>
+                    <p class="mt-1 text-slate-500">S1 Teknik Informatika</p>
+                  </td>
+                  <td class="px-4 py-4">
+                    <p>Sem. 6</p>
+                    <p class="mt-1 font-semibold text-emerald-700">IPK 3.78</p>
+                  </td>
+                  <td class="px-4 py-4 font-semibold text-emerald-700">✓ 100% Lengkap</td>
+                  <td class="px-4 py-4">
+                    <span class="whitespace-nowrap rounded-full bg-emerald-50 px-3 py-1.5 text-[10px] font-semibold text-emerald-700">Siap di Bilik</span>
+                  </td>
+                  <td class="px-4 py-4 text-right">
+                    <button type="button" class="rounded-lg bg-slate-100 px-3 py-2 font-semibold text-violet-700 hover:bg-violet-100">Detail</button>
+                  </td>
+                </tr>
+
+                <tr class="hover:bg-slate-50">
+                  <td class="px-4 py-4 font-bold text-violet-700">#02</td>
+                  <td class="px-4 py-4">
+                    <div class="flex items-center gap-3">
+                      <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuAhNw-Xr5Cte8One2BrRBpRq8xJyhZcShgO8JsEyASTAiYXAxlkE_FEa8-Soyf-GQFQe0Epv1yaVm-fuMw2f3G9y62BKQYSw3bYymqJAL1jwl4l8aHwAat4fjTGP_1m9gJPwPgjbYjiKk1-guphN_RqfWG-7QqfUkEMEriF7rYjewxwcVdnrB9agTO4s1m2CJmPqnP20qhPG-AkcB7RNqbaNU2lTpUamsgDLKtTgIbglRhsRrMJXyANBg" alt="Ratna Dewi" class="h-10 w-10 rounded-xl object-cover" />
+                      <div>
+                        <p class="font-semibold">Ratna Dewi</p>
+                        <p class="mt-1 text-[10px] text-slate-500">Departemen Elektro</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="px-4 py-4">
+                    <p class="font-mono">2204102019</p>
+                    <p class="mt-1 text-slate-500">S1 Teknik Elektro</p>
+                  </td>
+                  <td class="px-4 py-4">
+                    <p>Sem. 6</p>
+                    <p class="mt-1 font-semibold text-emerald-700">IPK 3.65</p>
+                  </td>
+                  <td class="px-4 py-4 font-semibold text-emerald-700">✓ 100% Lengkap</td>
+                  <td class="px-4 py-4">
+                    <span class="whitespace-nowrap rounded-full bg-emerald-50 px-3 py-1.5 text-[10px] font-semibold text-emerald-700">Siap di Bilik</span>
+                  </td>
+                  <td class="px-4 py-4 text-right">
+                    <button type="button" class="rounded-lg bg-slate-100 px-3 py-2 font-semibold text-violet-700 hover:bg-violet-100">Detail</button>
+                  </td>
+                </tr>
+
+                <tr class="hover:bg-slate-50">
+                  <td class="px-4 py-4 font-bold text-violet-700">#03</td>
+                  <td class="px-4 py-4">
+                    <div class="flex items-center gap-3">
+                      <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuC8ZolsDt3nkBLwOHctmLoRNvWc088cxfD6y44-TPisMrMWndDerR7aA8l9zAC8u62eeNlwax20qIkAWN6UBHaGcXKv2UR7cVTqQ5LLtaMyPz3iwURAC1-3WamDzHu1eewR28qrWv3SvkpKa62aHVz4ydh9LMGuiFHnzoKom9uwyskdncQBV00diAh5uxcsxgqqOtKxFISCfbnV30XTOOS8PjmWkcR65cp3mzwhWtPncP0BiF-bytBHgQ" alt="Kevin Pratama" class="h-10 w-10 rounded-xl object-cover" />
+                      <div>
+                        <p class="font-semibold">Kevin Pratama</p>
+                        <p class="mt-1 text-[10px] text-slate-500">Departemen Sipil</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="px-4 py-4">
+                    <p class="font-mono">2103103055</p>
+                    <p class="mt-1 text-slate-500">S1 Teknik Sipil</p>
+                  </td>
+                  <td class="px-4 py-4">
+                    <p>Sem. 8</p>
+                    <p class="mt-1 font-semibold text-emerald-700">IPK 3.52</p>
+                  </td>
+                  <td class="px-4 py-4 font-semibold text-emerald-700">✓ 100% Lengkap</td>
+                  <td class="px-4 py-4">
+                    <span class="whitespace-nowrap rounded-full bg-emerald-50 px-3 py-1.5 text-[10px] font-semibold text-emerald-700">Siap di Bilik</span>
+                  </td>
+                  <td class="px-4 py-4 text-right">
+                    <button type="button" class="rounded-lg bg-slate-100 px-3 py-2 font-semibold text-violet-700 hover:bg-violet-100">Detail</button>
+                  </td>
+                </tr>
+
+                <tr class="hover:bg-slate-50">
+                  <td class="px-4 py-4 font-bold text-slate-400">#04</td>
+                  <td class="px-4 py-4">
+                    <div class="flex items-center gap-3">
+                      <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuD63BmQhg12pZpZKonjYHL_esj95QaS6lHrV6jNvI9JxUGtfPolNd1kHg0HZ8zqkH8pWR6o-eAQwth1gTdIOfUcPUIQzQZ0gV0sqDmH7kl39K1xoKbPeXXuw8AJP33wH102_1nrdYWTobAnlhKIJOAQFFpuEWkRl8-Q4eYzvAUK7Bl6zZgzvkasScV9RtZBZXs_mujOaz_BFm-Z5btVxQ4IK9wjyfm91B78rtftaMfv5VfbEOZ21LowDw" alt="Maya Anindita" class="h-10 w-10 rounded-xl object-cover" />
+                      <div>
+                        <p class="font-semibold">Maya Anindita</p>
+                        <p class="mt-1 text-[10px] text-slate-500">Departemen Mesin</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="px-4 py-4">
+                    <p class="font-mono">2205101088</p>
+                    <p class="mt-1 text-slate-500">S1 Teknik Mesin</p>
+                  </td>
+                  <td class="px-4 py-4">
+                    <p>Sem. 6</p>
+                    <p class="mt-1 font-semibold text-emerald-700">IPK 3.80</p>
+                  </td>
+                  <td class="px-4 py-4 font-semibold text-amber-700">Menunggu SKCK</td>
+                  <td class="px-4 py-4">
+                    <span class="whitespace-nowrap rounded-full bg-amber-50 px-3 py-1.5 text-[10px] font-semibold text-amber-700">Verifikasi Berkas</span>
+                  </td>
+                  <td class="px-4 py-4 text-right">
+                    <button type="button" class="rounded-lg bg-violet-700 px-3 py-2 font-semibold text-white hover:bg-violet-800">Verifikasi</button>
+                  </td>
+                </tr>
+
+                <tr class="hover:bg-slate-50">
+                  <td class="px-4 py-4 font-bold text-slate-400">#05</td>
+                  <td class="px-4 py-4">
+                    <div class="flex items-center gap-3">
+                      <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuAC6whJ-zQgpnIq9ZBiWhLAgJ7_WusIKoHIHNvLdSxQlZ6BA7G3qpLL0M1QAgUwTvHrJEvQgTm3WYRwSw1WyrmnkbzYAnvGZNOct2GkeEpmXp9J5m5RzibPHX8R2YSL_dmewMWhMdsjnmr0J_wkkVVQCSIwdYdHXOLNoQtw55GHf3wegTHXLBCeLjs3CX7BeXvgE6AUHIKIn-ARD-SDKrzGGPppgicNEwvMJfCNeq09whEpzisIVNYHPA" alt="Fikri Haikal" class="h-10 w-10 rounded-xl object-cover" />
+                      <div>
+                        <p class="font-semibold">Fikri Haikal</p>
+                        <p class="mt-1 text-[10px] text-slate-500">Departemen Arsitektur</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="px-4 py-4">
+                    <p class="font-mono">2106102041</p>
+                    <p class="mt-1 text-slate-500">S1 Arsitektur</p>
+                  </td>
+                  <td class="px-4 py-4">
+                    <p>Sem. 8</p>
+                    <p class="mt-1 font-semibold text-emerald-700">IPK 3.42</p>
+                  </td>
+                  <td class="px-4 py-4 font-semibold text-amber-700">Kurang 12 KTM</td>
+                  <td class="px-4 py-4">
+                    <span class="whitespace-nowrap rounded-full bg-amber-50 px-3 py-1.5 text-[10px] font-semibold text-amber-700">Revisi Dukungan</span>
+                  </td>
+                  <td class="px-4 py-4 text-right">
+                    <button type="button" class="rounded-lg bg-violet-700 px-3 py-2 font-semibold text-white hover:bg-violet-800">Verifikasi</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- SOP -->
+        <section class="flex flex-col gap-5 rounded-2xl bg-violet-50 p-6 md:flex-row">
+          <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-violet-800">
+            <span class="material-symbols-outlined text-3xl">gavel</span>
+          </div>
+
+          <div class="flex-1">
+            <h2 class="text-lg font-bold">SOP Penetapan Kandidat &amp; Paslon Pemira</h2>
+
+            <div class="mt-4 grid grid-cols-1 gap-6 md:grid-cols-2">
+              <div>
+                <h3 class="mb-2 flex items-center gap-2 text-sm font-semibold">
+                  <span class="material-symbols-outlined text-violet-700">rule</span>
+                  Standar Kelayakan KPU Mahasiswa
+                </h3>
+                <p class="text-xs leading-6 text-slate-600">
+                  Syarat minimal IPK ≥ 3.25, tidak sedang dalam sanksi akademik atau tindak pidana, telah menempuh minimal 80 SKS aktif, serta menyertakan minimal 150 tanda tangan bukti dukungan mahasiswa resmi (NIM dan KTM sah).
+                </p>
+              </div>
+
+              <div>
+                <h3 class="mb-2 flex items-center gap-2 text-sm font-semibold">
+                  <span class="material-symbols-outlined text-violet-700">how_to_vote</span>
+                  Regulasi Bilik Suara Digital
+                </h3>
+                <p class="text-xs leading-6 text-slate-600">
+                  Paslon yang berstatus <strong class="text-emerald-700">Terverifikasi KPU</strong> diteruskan ke bilik suara digital pemilih. Perubahan berkas atau nama setelah penetapan membutuhkan persetujuan sidang pleno.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <footer class="flex flex-col justify-between gap-2 border-t border-slate-200 pt-5 text-[10px] text-slate-400 sm:flex-row">
+          <p>A-Vote Campus System · Admin Panel</p>
+          <p>Pemilu Mahasiswa 2025</p>
+        </footer>
+
+      </div>
+    </main>
+  </div>
+</template>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
+
+body {
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+}
+
+h1,
+h2,
+h3 {
+  font-family: 'Manrope', sans-serif;
+}
+</style>
+```
