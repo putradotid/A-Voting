@@ -1,171 +1,124 @@
+<script setup lang="ts">
+definePageMeta({
+  layout: false
+})
+</script>
+
 <template>
   <div class="min-h-screen bg-slate-50 text-slate-900">
+    <VoterHeader />
 
-    <!-- HEADER -->
-    <header class="sticky top-0 z-50 border-b border-slate-200 bg-white">
-      <div class="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
 
-        <div class="flex items-center gap-3">
-          <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-600">
-            <span class="material-symbols-outlined text-white">
-              how_to_vote
-            </span>
-          </div>
-
-          <div>
-            <h1 class="font-bold leading-none text-purple-700">
-              A-VOTE
-            </h1>
-            <p class="text-xs text-slate-500">
-              Pemilihan Raya BEM 2025
-            </p>
-          </div>
+    <!-- =================================================
+    HEADER INFORMASI PEMILIH
+================================================== -->
+    <section
+      class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8 p-4 rounded-xl bg-white shadow-sm border border-purple-100/50">
+      <div class="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+        <div
+          class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-50 text-[#582be8] font-mono font-semibold">
+          <span class="w-1.5 h-1.5 rounded-full bg-[#582be8] animate-ping"></span>
+          SIAKAD AUTHENTICATED
         </div>
 
-        <div class="flex items-center gap-6">
-          <div class="hidden items-center gap-2 text-sm md:flex">
-            <span class="material-symbols-outlined text-green-600">
-              lock
-            </span>
-            <span class="text-slate-600">
-              Enkripsi End-to-End Aktif
-            </span>
-          </div>
+        <span class="text-slate-300">•</span>
 
-          <div class="flex items-center gap-3 border-l pl-6">
-            <div class="text-right">
-              <p class="text-sm font-semibold">
-                Ahmad Fauzi
-              </p>
-              <p class="text-xs text-slate-500">
-                3271****48
-              </p>
-            </div>
-
-            <div class="flex h-9 w-9 items-center justify-center rounded-full bg-purple-100">
-              <span class="font-semibold text-purple-700">
-                AF
-              </span>
-            </div>
-          </div>
-        </div>
-
-      </div>
-
-      <!-- NAVIGATION -->
-      <nav class="border-t border-slate-100">
-        <div class="mx-auto flex max-w-7xl items-center gap-8 px-6">
-
-          <a
-            href="/voter/booth"
-            class="border-b-2 border-purple-600 py-3 text-sm font-semibold text-purple-700"
-          >
-            Bilik Suara
-          </a>
-
-          <a
-            href="#"
-            class="py-3 text-sm text-slate-500 hover:text-purple-600"
-          >
-            Kandidat
-          </a>
-
-          <a
-            href="#"
-            class="py-3 text-sm text-slate-500 hover:text-purple-600"
-          >
-            Audit Kriptografis
-          </a>
-
-          <a
-            href="#"
-            class="py-3 text-sm text-slate-500 hover:text-purple-600"
-          >
-            Panduan
-          </a>
-
-        </div>
-      </nav>
-    </header>
-
-
-    <!-- PROGRESS -->
-    <section class="border-b bg-white">
-      <div class="mx-auto max-w-7xl px-6 py-5">
-
-        <div class="mb-3 flex items-center justify-between">
-          <div>
-            <p class="text-sm font-semibold">
-              Tahap 3 dari 4
-            </p>
-            <p class="text-xs text-slate-500">
-              Bilik Suara Digital
-            </p>
-          </div>
-
-          <span class="text-sm font-semibold text-purple-600">
-            75%
+        <div class="flex items-center gap-2 text-slate-800">
+          <span class="text-[#582be8]">🪪</span>
+          <span class="font-semibold">
+            Ahmad Fauzi
+          </span>
+          <span class="font-mono text-slate-400">
+            (22.11.1234)
           </span>
         </div>
 
-        <div class="h-2 overflow-hidden rounded-full bg-slate-200">
-          <div class="h-full w-3/4 rounded-full bg-purple-600"></div>
+        <span class="text-slate-300">•</span>
+
+        <span>
+          Fakultas Teknik Informatika
+        </span>
+      </div>
+
+      <div
+        class="inline-flex items-center gap-2 px-4 py-1.5 rounded-lg bg-purple-100 text-[#582be8] font-mono text-[10px] font-medium self-start lg:self-center">
+        <!-- Emoji disesuaikan untuk konteks Bilik Suara -->
+        🗳️
+        BILIK SUARA: RAHASIA & AMAN
+      </div>
+    </section>
+
+    <!-- =================================================
+    PROGRESS STEPPER (TAHAP 3)
+================================================== -->
+    <section class="mb-12">
+      <div class="p-6 rounded-xl bg-white shadow-sm border border-purple-100/50">
+
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-[10px] font-mono text-[#582be8] font-semibold uppercase tracking-wider">
+            Progres Alur Pemilihan
+          </span>
+          <span class="text-xs font-mono font-semibold text-slate-800">
+            Tahap 3 dari 4 (75%)
+          </span>
         </div>
 
-        <div class="mt-4 grid grid-cols-4 gap-4 text-xs">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
 
-          <div class="text-green-600">
-            <div class="mb-1 flex items-center gap-2 font-semibold">
-              <span class="material-symbols-outlined text-base">
-                check_circle
-              </span>
-              Autentikasi SIAKAD
+          <!-- Step 1 (Selesai) -->
+          <div class="flex items-center gap-3 p-3 rounded-lg bg-slate-50">
+            <div class="w-8 h-8 rounded-full bg-[#582be8] text-white flex items-center justify-center shrink-0">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 -960 960 960" fill="currentColor">
+                <path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z" />
+              </svg>
             </div>
-            <p class="text-slate-400">
-              Selesai
-            </p>
+            <div class="min-w-0">
+              <span class="block text-[10px] font-mono text-slate-400">Tahap 01</span>
+              <span class="block text-sm font-semibold truncate text-slate-800">Autentikasi SIAKAD</span>
+            </div>
           </div>
 
-          <div class="text-green-600">
-            <div class="mb-1 flex items-center gap-2 font-semibold">
-              <span class="material-symbols-outlined text-base">
-                check_circle
-              </span>
-              Ketentuan & Regulasi
+          <!-- Step 2 (Selesai) -->
+          <div class="flex items-center gap-3 p-3 rounded-lg bg-slate-50">
+            <div class="w-8 h-8 rounded-full bg-[#582be8] text-white flex items-center justify-center shrink-0">
+              <!-- Menggunakan SVG centang agar lebih rapi dari karakter teks ✓ -->
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 -960 960 960" fill="currentColor">
+                <path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z" />
+              </svg>
             </div>
-            <p class="text-slate-400">
-              Selesai
-            </p>
+            <div class="min-w-0">
+              <span class="block text-[10px] font-mono text-slate-400">Tahap 02</span>
+              <span class="block text-sm font-semibold truncate text-slate-800">Ketentuan & Regulasi</span>
+            </div>
           </div>
 
-          <div class="text-purple-600">
-            <div class="mb-1 flex items-center gap-2 font-semibold">
-              <span class="material-symbols-outlined text-base">
-                radio_button_checked
-              </span>
-              Bilik Suara Digital
+          <!-- Step 3 (Aktif Saat Ini) -->
+          <div class="flex items-center gap-3 p-3 rounded-lg bg-purple-100 text-purple-900 border border-purple-200">
+            <div
+              class="w-8 h-8 rounded-full bg-[#582be8] text-white flex items-center justify-center font-mono font-bold shrink-0 shadow-sm">
+              3
             </div>
-            <p class="text-slate-400">
-              Sedang berlangsung
-            </p>
+            <div class="min-w-0">
+              <span class="block text-[10px] font-mono text-purple-700 font-medium">Tahap Saat Ini</span>
+              <span class="block text-sm font-bold truncate">Bilik Suara Digital</span>
+            </div>
           </div>
 
-          <div class="text-slate-400">
-            <div class="mb-1 flex items-center gap-2 font-semibold">
-              <span class="material-symbols-outlined text-base">
-                radio_button_unchecked
-              </span>
-              Bukti Kriptografis
+          <!-- Step 4 (Menunggu) -->
+          <div class="flex items-center gap-3 p-3 rounded-lg bg-slate-50 opacity-60">
+            <div
+              class="w-8 h-8 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center font-mono shrink-0">
+              4
             </div>
-            <p>
-              Menunggu
-            </p>
+            <div class="min-w-0">
+              <span class="block text-[10px] font-mono text-slate-400">Tahap 04</span>
+              <span class="block text-sm font-semibold text-slate-500 truncate">Bukti Kriptografis</span>
+            </div>
           </div>
 
         </div>
       </div>
     </section>
-
 
     <!-- SESSION -->
     <main class="mx-auto max-w-7xl px-6 py-8">
@@ -256,11 +209,8 @@
 
             <div class="relative">
 
-              <img
-                src="https://lh3.googleusercontent.com/aida-public/..."
-                alt="Muhammad Farhan & Nabila Putri"
-                class="h-56 w-full object-cover"
-              />
+              <img src="https://lh3.googleusercontent.com/aida-public/..." alt="Muhammad Farhan & Nabila Putri"
+                class="h-56 w-full object-cover" />
 
               <div class="absolute left-4 top-4 rounded-full bg-white px-4 py-2 text-lg font-bold shadow">
                 01
@@ -313,17 +263,13 @@
 
               <div class="mt-6 flex gap-3">
 
-                <button
-                  type="button"
-                  class="flex-1 rounded-lg border border-slate-300 px-4 py-3 text-sm font-semibold hover:bg-slate-50"
-                >
+                <button type="button"
+                  class="flex-1 rounded-lg border border-slate-300 px-4 py-3 text-sm font-semibold hover:bg-slate-50">
                   Visi & Misi
                 </button>
 
-                <button
-                  type="button"
-                  class="flex-1 rounded-lg bg-purple-600 px-4 py-3 text-sm font-semibold text-white hover:bg-purple-700"
-                >
+                <button type="button"
+                  class="flex-1 rounded-lg bg-purple-600 px-4 py-3 text-sm font-semibold text-white hover:bg-purple-700">
                   Pilih Paslon 01
                 </button>
 
@@ -342,11 +288,8 @@
 
             <div class="relative">
 
-              <img
-                src="https://lh3.googleusercontent.com/aida-public/..."
-                alt="Dimas Arya Prasetya & Siti Rahmawati"
-                class="h-56 w-full object-cover"
-              />
+              <img src="https://lh3.googleusercontent.com/aida-public/..." alt="Dimas Arya Prasetya & Siti Rahmawati"
+                class="h-56 w-full object-cover" />
 
               <div class="absolute left-4 top-4 rounded-full bg-white px-4 py-2 text-lg font-bold shadow">
                 02
@@ -388,17 +331,12 @@
 
               <div class="mt-6 flex gap-3">
 
-                <button
-                  type="button"
-                  class="flex-1 rounded-lg border border-slate-300 px-4 py-3 text-sm font-semibold"
-                >
+                <button type="button" class="flex-1 rounded-lg border border-slate-300 px-4 py-3 text-sm font-semibold">
                   Visi & Misi
                 </button>
 
-                <button
-                  type="button"
-                  class="flex-1 rounded-lg bg-purple-600 px-4 py-3 text-sm font-semibold text-white"
-                >
+                <button type="button"
+                  class="flex-1 rounded-lg bg-purple-600 px-4 py-3 text-sm font-semibold text-white">
                   Terpilih (Siap Dikirim)
                 </button>
 
@@ -413,11 +351,8 @@
 
             <div class="relative">
 
-              <img
-                src="https://lh3.googleusercontent.com/aida-public/..."
-                alt="Bagas Wicaksono & Amanda Clarissa"
-                class="h-56 w-full object-cover"
-              />
+              <img src="https://lh3.googleusercontent.com/aida-public/..." alt="Bagas Wicaksono & Amanda Clarissa"
+                class="h-56 w-full object-cover" />
 
               <div class="absolute left-4 top-4 rounded-full bg-white px-4 py-2 text-lg font-bold shadow">
                 03
@@ -459,17 +394,12 @@
 
               <div class="mt-6 flex gap-3">
 
-                <button
-                  type="button"
-                  class="flex-1 rounded-lg border border-slate-300 px-4 py-3 text-sm font-semibold"
-                >
+                <button type="button" class="flex-1 rounded-lg border border-slate-300 px-4 py-3 text-sm font-semibold">
                   Visi & Misi
                 </button>
 
-                <button
-                  type="button"
-                  class="flex-1 rounded-lg bg-purple-600 px-4 py-3 text-sm font-semibold text-white"
-                >
+                <button type="button"
+                  class="flex-1 rounded-lg bg-purple-600 px-4 py-3 text-sm font-semibold text-white">
                   Pilih Paslon 03
                 </button>
 
@@ -566,17 +496,12 @@
 
         <div class="flex items-center gap-3">
 
-          <button
-            type="button"
-            class="rounded-lg border border-slate-300 px-5 py-3 text-sm font-semibold"
-          >
+          <button type="button" class="rounded-lg border border-slate-300 px-5 py-3 text-sm font-semibold">
             Batalkan Pilihan
           </button>
 
-          <NuxtLink
-            to="/voter/receipt"
-            class="rounded-lg bg-purple-600 px-6 py-3 text-sm font-semibold text-white hover:bg-purple-700"
-          >
+          <NuxtLink to="/voter/receipt"
+            class="rounded-lg bg-purple-600 px-6 py-3 text-sm font-semibold text-white hover:bg-purple-700">
             Kirim & Kunci Suara Saya
           </NuxtLink>
 

@@ -1,119 +1,12 @@
-```vue
+<script setup lang="ts">
+definePageMeta({
+  layout: 'admin'
+})
+</script>
+
 <template>
-  <div class="min-h-screen bg-[#f8f9ff] text-slate-800">
-    <!-- Sidebar -->
-    <aside class="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col justify-between border-r border-slate-200 bg-white lg:flex">
-      <div>
-        <div class="flex h-20 items-center gap-3 px-6">
-          <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-700 text-white">
-            <span class="material-symbols-outlined">how_to_vote</span>
-          </div>
-          <div>
-            <h1 class="text-xl font-bold tracking-tight">A-Vote</h1>
-            <p class="text-[10px] font-semibold uppercase tracking-widest text-violet-700">Campus System</p>
-          </div>
-        </div>
+  <div class="mx-auto flex max-w-[1440px] flex-col gap-7">
 
-        <div class="px-5 pb-2 pt-4 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-          Navigasi Utama
-        </div>
-
-        <nav class="space-y-1 px-3">
-          <a href="#" class="flex items-center gap-3 rounded-xl px-4 py-3 text-sm text-slate-600 hover:bg-slate-50">
-            <span class="material-symbols-outlined">grid_view</span>
-            Dashboard
-          </a>
-          <a href="#" class="flex items-center justify-between rounded-xl px-4 py-3 text-sm text-slate-600 hover:bg-slate-50">
-            <span class="flex items-center gap-3">
-              <span class="material-symbols-outlined">ballot</span>
-              Pemilihan
-            </span>
-            <span class="rounded-full bg-violet-50 px-2 py-0.5 text-[10px] text-violet-700">3 Aktif</span>
-          </a>
-          <a href="#" class="flex items-center justify-between rounded-xl px-4 py-3 text-sm text-slate-600 hover:bg-slate-50">
-            <span class="flex items-center gap-3">
-              <span class="material-symbols-outlined">group</span>
-              Daftar Pemilih
-            </span>
-            <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px]">DPT</span>
-          </a>
-          <a href="#" class="flex items-center justify-between rounded-xl bg-violet-100 px-4 py-3 text-sm font-semibold text-violet-800">
-            <span class="flex items-center gap-3">
-              <span class="material-symbols-outlined">badge</span>
-              Kandidat &amp; Paslon
-            </span>
-            <span class="material-symbols-outlined text-lg">chevron_right</span>
-          </a>
-          <a href="#" class="flex items-center gap-3 rounded-xl px-4 py-3 text-sm text-slate-600 hover:bg-slate-50">
-            <span class="material-symbols-outlined">analytics</span>
-            Rekapitulasi
-          </a>
-          <a href="#" class="flex items-center gap-3 rounded-xl px-4 py-3 text-sm text-slate-600 hover:bg-slate-50">
-            <span class="material-symbols-outlined">settings</span>
-            Pengaturan Sistem
-          </a>
-        </nav>
-      </div>
-
-      <div class="p-4">
-        <div class="rounded-xl bg-slate-50 p-3">
-          <div class="flex items-center gap-2 text-xs font-semibold">
-            <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
-            A-Vote v2.4.0
-          </div>
-          <p class="mt-1 text-[11px] text-slate-500">Server Siap &amp; Terhubung - Online</p>
-        </div>
-      </div>
-    </aside>
-
-    <!-- Header -->
-    <header class="fixed left-0 right-0 top-0 z-30 flex h-20 items-center justify-between border-b border-slate-200 bg-white/95 px-5 shadow-sm backdrop-blur lg:left-64 lg:px-8">
-      <div class="flex min-w-0 items-center gap-4">
-        <h2 class="hidden whitespace-nowrap text-lg font-bold md:block">A-Vote Admin Panel</h2>
-
-        <span class="hidden items-center gap-2 rounded-full bg-violet-50 px-3 py-2 text-[10px] font-medium text-violet-800 xl:flex">
-          <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
-          Status Sistem: Aktif &amp; Normal
-        </span>
-      </div>
-
-      <div class="mx-5 hidden max-w-md flex-1 lg:block">
-        <div class="relative">
-          <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
-          <input
-            type="text"
-            placeholder="Cari kandidat, paslon, nomor urut..."
-            class="w-full rounded-xl border border-transparent bg-slate-50 py-3 pl-10 pr-4 text-xs outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
-          />
-        </div>
-      </div>
-
-      <div class="flex shrink-0 items-center gap-3">
-        <button type="button" class="relative flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50 text-slate-600">
-          <span class="material-symbols-outlined">notifications</span>
-          <span class="absolute right-2 top-2 h-2 w-2 rounded-full bg-red-500"></span>
-        </button>
-
-        <div class="hidden items-center gap-2 sm:flex">
-          <div class="flex h-9 w-9 items-center justify-center rounded-full bg-violet-700 text-white">
-            <span class="material-symbols-outlined text-lg">person</span>
-          </div>
-          <div>
-            <p class="text-xs font-semibold">Super Administrator</p>
-            <p class="text-[10px] text-slate-500">admin@gmail.com</p>
-          </div>
-        </div>
-
-        <a href="#" class="flex items-center gap-1 rounded-lg px-2 py-2 text-xs font-medium text-red-600 hover:bg-red-50">
-          <span class="material-symbols-outlined text-lg">logout</span>
-          <span class="hidden sm:inline">Logout</span>
-        </a>
-      </div>
-    </header>
-
-    <!-- Main Content -->
-    <main class="min-h-screen px-4 pb-10 pt-24 sm:px-6 lg:ml-64 lg:px-8">
-      <div class="mx-auto flex max-w-[1440px] flex-col gap-7">
 
         <!-- Page Heading -->
         <section class="flex flex-col justify-between gap-5 xl:flex-row xl:items-center">
@@ -706,8 +599,6 @@
         </footer>
 
       </div>
-    </main>
-  </div>
 </template>
 
 <style>
@@ -724,4 +615,3 @@ h3 {
   font-family: 'Manrope', sans-serif;
 }
 </style>
-```

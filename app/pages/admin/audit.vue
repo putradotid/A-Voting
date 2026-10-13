@@ -1,120 +1,12 @@
+<script setup lang="ts">
+definePageMeta({
+  layout: 'admin'
+})
+</script>
+
 <template>
-  <div class="min-h-screen bg-[#f8f9fc] font-sans text-slate-800 antialiased">
-    <!-- Top Navigation -->
-    <header class="sticky top-0 z-30 border-b border-slate-200 bg-white shadow-sm">
-      <div class="flex min-h-[72px] items-center justify-between gap-4 px-4 py-3 sm:px-6">
-        <div class="flex items-center gap-3">
-          <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-600 text-white shadow-md shadow-brand-600/20">
-            <span class="material-symbols-outlined">verified_user</span>
-          </div>
+  <div class="mx-auto flex max-w-[1600px] flex-col gap-6">
 
-          <div class="flex items-center gap-2">
-            <span class="font-heading text-xl font-extrabold tracking-tight text-brand-600">A-Vote</span>
-            <span class="rounded-md border border-brand-200 bg-brand-50 px-2 py-0.5 text-xs font-semibold text-brand-700">Admin</span>
-          </div>
-
-          <div class="ml-4 hidden items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 xl:flex">
-            <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
-            Sistem Enkripsi Aktif
-          </div>
-        </div>
-
-        <div class="hidden w-full max-w-sm md:block">
-          <div class="relative">
-            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-slate-400">search</span>
-            <input
-              type="text"
-              placeholder="Cari NIK, pemilih, atau ID pemilihan..."
-              class="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-xs outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10"
-            />
-          </div>
-        </div>
-
-        <div class="flex shrink-0 items-center gap-3">
-          <button type="button" class="relative flex h-9 w-9 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100">
-            <span class="material-symbols-outlined">notifications</span>
-            <span class="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500"></span>
-          </button>
-
-          <div class="hidden h-8 w-px bg-slate-200 sm:block"></div>
-
-          <div class="hidden items-center gap-2 sm:flex">
-            <div class="flex h-9 w-9 items-center justify-center rounded-full border border-brand-200 bg-brand-100 text-xs font-bold text-brand-700">AD</div>
-            <div>
-              <p class="text-xs font-semibold text-slate-800">admin@gmail.com</p>
-              <p class="mt-0.5 text-[11px] font-medium text-brand-600">Super Administrator</p>
-            </div>
-          </div>
-
-          <a href="#" class="rounded-lg px-2.5 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-50">Logout</a>
-        </div>
-      </div>
-    </header>
-
-    <div class="flex min-h-[calc(100vh-72px)]">
-      <!-- Sidebar -->
-      <aside class="hidden w-64 shrink-0 flex-col justify-between border-r border-slate-200 bg-white md:flex">
-        <nav aria-label="Menu Admin" class="space-y-1.5 p-4">
-          <p class="mb-3 px-3 text-[11px] font-bold uppercase tracking-wider text-slate-400">Main Menu</p>
-
-          <a href="#" class="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900">
-            <span class="material-symbols-outlined text-xl text-slate-400">grid_view</span>
-            Dashboard
-          </a>
-
-          <a href="#" class="flex items-center justify-between rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900">
-            <span class="flex items-center gap-3">
-              <span class="material-symbols-outlined text-xl text-slate-400">ballot</span>
-              Elections
-            </span>
-            <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-800">3 Aktif</span>
-          </a>
-
-          <a href="#" class="flex items-center justify-between rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900">
-            <span class="flex items-center gap-3">
-              <span class="material-symbols-outlined text-xl text-slate-400">groups</span>
-              Daftar Pemilih
-            </span>
-            <span class="text-[11px] text-slate-400">DPT</span>
-          </a>
-
-          <a href="#" class="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900">
-            <span class="material-symbols-outlined text-xl text-slate-400">person</span>
-            Kandidat &amp; Paslon
-          </a>
-
-          <a href="#" class="flex items-center gap-3 rounded-xl border border-brand-100 bg-brand-50 px-3.5 py-2.5 text-sm font-semibold text-brand-600 shadow-sm">
-            <span class="material-symbols-outlined text-xl">analytics</span>
-            Audit &amp; Rekapitulasi
-          </a>
-
-          <div class="pb-1 pt-5">
-            <p class="mb-3 px-3 text-[11px] font-bold uppercase tracking-wider text-slate-400">Konfigurasi</p>
-            <a href="#" class="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900">
-              <span class="material-symbols-outlined text-xl text-slate-400">settings</span>
-              Pengaturan Sistem
-            </a>
-          </div>
-        </nav>
-
-        <div class="border-t border-slate-100 bg-slate-50/60 p-4">
-          <div class="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-            <div class="flex items-center gap-2 text-xs font-semibold text-slate-700">
-              <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
-              256-Bit SSL Enkripsi
-            </div>
-            <p class="mt-1 text-[11px] text-slate-500">Konsensus node terverifikasi.</p>
-            <div class="mt-3 flex items-center justify-between border-t border-slate-100 pt-2 text-[10px] text-slate-400">
-              <span>v2.4.0-Production</span>
-              <span class="font-mono font-semibold text-brand-600">ONLINE</span>
-            </div>
-          </div>
-        </div>
-      </aside>
-
-      <!-- Main Content -->
-      <main class="min-w-0 flex-1 p-4 sm:p-6 lg:p-8">
-        <div class="mx-auto flex max-w-[1600px] flex-col gap-6">
           <!-- Page Heading -->
           <section class="flex flex-col justify-between gap-5 xl:flex-row xl:items-center">
             <div>
@@ -672,9 +564,6 @@
             <p>A-Vote Campus System · Admin Panel</p>
             <p>Pemilu Mahasiswa 2025 · Audit &amp; Rekapitulasi</p>
           </footer>
-        </div>
-      </main>
-    </div>
   </div>
 </template>
 

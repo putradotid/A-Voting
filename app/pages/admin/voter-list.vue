@@ -1,126 +1,13 @@
+<script setup lang="ts">
+definePageMeta({
+  layout: 'admin',
+  alias: '/admin/voters'
+})
+</script>
+
 <template>
-  <div class="min-h-screen bg-[#f8f9ff] text-slate-800 antialiased">
-    <!-- Top Navigation -->
-    <header class="sticky top-0 z-30 border-b border-slate-200 bg-white shadow-sm">
-      <div class="flex items-center justify-between gap-4 px-6 py-3">
-        <div class="flex items-center gap-3">
-          <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-600 text-white shadow-md">
-            <span class="material-symbols-outlined">verified_user</span>
-          </div>
+  <div class="flex flex-col gap-8">
 
-          <div>
-            <div class="flex items-center gap-2">
-              <span class="font-heading text-xl font-bold text-violet-600">A-Vote</span>
-              <span class="rounded-md border border-violet-200 bg-violet-50 px-2 py-0.5 text-xs font-semibold text-violet-600">
-                Admin Panel
-              </span>
-            </div>
-          </div>
-
-          <div class="ml-4 hidden items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs text-emerald-700 lg:flex">
-            <span class="h-2 w-2 animate-pulse rounded-full bg-emerald-500"></span>
-            Status Sistem: Aktif &amp; Normal
-          </div>
-        </div>
-
-        <div class="hidden w-72 md:block lg:w-96">
-          <input
-            type="text"
-            placeholder="Cari nama pemilih, NIM, atau pemilihan..."
-            class="w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-xs outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20"
-          />
-        </div>
-
-        <div class="flex items-center gap-4">
-          <button class="relative rounded-lg p-2 text-slate-500 transition hover:bg-slate-100">
-            <span class="material-symbols-outlined">notifications</span>
-            <span class="absolute right-1 top-1 rounded-full bg-rose-500 px-1.5 text-[10px] font-bold text-white">3</span>
-          </button>
-
-          <div class="hidden items-center gap-3 sm:flex">
-            <div class="flex h-8 w-8 items-center justify-center rounded-full border border-violet-200 bg-violet-100 text-xs font-bold text-violet-700">
-              AD
-            </div>
-            <div class="leading-tight">
-              <p class="text-xs font-semibold">admin@gmail.com</p>
-              <span class="text-[10px] font-semibold text-violet-600">Super Administrator</span>
-            </div>
-          </div>
-
-          <a href="#" class="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-50">
-            Logout
-          </a>
-        </div>
-      </div>
-    </header>
-
-    <div class="flex min-h-[calc(100vh-60px)]">
-      <!-- Sidebar -->
-      <aside class="hidden w-64 shrink-0 flex-col justify-between border-r border-slate-200 bg-white md:flex">
-        <nav class="space-y-1.5 p-4">
-          <p class="mb-3 px-3 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-            Main Menu
-          </p>
-
-          <a href="#" class="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900">
-            <span class="material-symbols-outlined text-slate-400">dashboard</span>
-            Dashboard
-          </a>
-
-          <a href="#" class="flex items-center justify-between rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900">
-            <span class="flex items-center gap-3">
-              <span class="material-symbols-outlined text-slate-400">how_to_vote</span>
-              Pemilihan
-            </span>
-            <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-800">3 Aktif</span>
-          </a>
-
-          <a href="#" class="flex items-center justify-between rounded-xl border border-violet-100 bg-violet-50 px-3.5 py-2.5 text-sm font-semibold text-violet-700">
-            <span class="flex items-center gap-3">
-              <span class="material-symbols-outlined">groups</span>
-              Daftar Pemilih
-            </span>
-            <span class="rounded-md bg-violet-100 px-2 py-0.5 text-[11px] font-bold">DPT</span>
-          </a>
-
-          <a href="#" class="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900">
-            <span class="material-symbols-outlined text-slate-400">badge</span>
-            Kandidat &amp; Paslon
-          </a>
-
-          <a href="#" class="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900">
-            <span class="material-symbols-outlined text-slate-400">bar_chart</span>
-            Rekapitulasi
-          </a>
-
-          <p class="mb-3 mt-6 px-3 pt-4 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-            Konfigurasi
-          </p>
-
-          <a href="#" class="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900">
-            <span class="material-symbols-outlined text-slate-400">settings</span>
-            Pengaturan Sistem
-          </a>
-        </nav>
-
-        <div class="border-t border-slate-100 bg-slate-50/60 p-4">
-          <div class="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-            <div class="flex items-center gap-2 text-xs font-semibold">
-              <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
-              A-Vote v2.4.0
-            </div>
-            <p class="mt-1 text-[11px] text-slate-500">Server Siap &amp; Terhubung</p>
-            <div class="mt-3 flex items-center justify-between border-t border-slate-100 pt-2 text-[10px]">
-              <span class="text-slate-400">Produksi Kampus</span>
-              <span class="font-mono font-semibold text-emerald-600">ONLINE</span>
-            </div>
-          </div>
-        </div>
-      </aside>
-
-      <!-- Main Content -->
-      <main class="min-w-0 flex-1 p-5 lg:p-8">
-        <div class="flex flex-col gap-8">
           <!-- Page Header -->
           <section class="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div class="space-y-2">
@@ -701,9 +588,6 @@
               </div>
             </div>
           </section>
-        </div>
-      </main>
-    </div>
   </div>
 </template>
 

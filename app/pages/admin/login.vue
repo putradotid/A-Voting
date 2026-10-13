@@ -1,16 +1,12 @@
 <script setup lang="ts">
-
+definePageMeta({
+  layout: 'auth'
+})
 </script>
 
 <template>
-  <main>
-    <section
-      class="pt-16 pb-20 px-4 sm:px-6 max-w-[1240px] mx-auto"
-    >
-      <div
-        class="bg-white rounded-2xl border border-purple-100/80 shadow-lg shadow-purple-600/5 overflow-hidden"
-      >
-        <div class="grid grid-cols-1 lg:grid-cols-2">
+  <div class="grid grid-cols-1 lg:grid-cols-2">
+
 
           <!-- =====================================================
                LEFT : ADMIN SECURITY INFORMATION
@@ -426,8 +422,5 @@
             </div>
           </div>
 
-        </div>
-      </div>
-    </section>
-  </main>
+  </div>
 </template>

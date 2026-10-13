@@ -1,163 +1,12 @@
-**File: `pages/admin/settings.vue`**
+<script setup lang="ts">
+definePageMeta({
+  layout: 'admin'
+})
+</script>
 
-```vue
 <template>
-  <div class="min-h-screen bg-[#f8f9fc] text-slate-800">
-    <!-- Top Navigation -->
-    <header
-      class="sticky top-0 z-30 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 sm:px-6"
-    >
-      <div class="flex items-center gap-3 lg:gap-6">
-        <div class="flex items-center gap-2.5">
-          <div
-            class="flex h-9 w-9 items-center justify-center rounded-xl bg-[#582be8] text-white shadow-md shadow-purple-600/20"
-          >
-            <span class="material-symbols-outlined">verified_user</span>
-          </div>
-          <div class="flex items-center gap-2">
-            <span class="font-heading text-xl font-bold tracking-tight text-[#582be8]">
-              A-Vote
-            </span>
-            <span
-              class="rounded-md border border-purple-200 bg-purple-50 px-2 py-0.5 text-xs font-semibold text-purple-700"
-            >
-              Admin
-            </span>
-          </div>
-        </div>
+  <div class="mx-auto w-full max-w-[1600px] space-y-8">
 
-        <div
-          class="hidden items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 xl:flex"
-        >
-          <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
-          Sistem Enkripsi: Aktif & Terlindungi (SHA-256)
-        </div>
-      </div>
-
-      <div class="mx-6 hidden max-w-md flex-1 md:block">
-        <div class="relative">
-          <span
-            class="material-symbols-outlined absolute left-3 top-2 text-lg text-slate-400"
-          >
-            search
-          </span>
-          <input
-            type="text"
-            placeholder="Cari NIK, pemilih, atau ID pemilihan..."
-            class="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-10 pr-4 text-xs outline-none transition focus:border-[#582be8] focus:ring-2 focus:ring-purple-100"
-          />
-        </div>
-      </div>
-
-      <div class="flex items-center gap-3 sm:gap-4">
-        <button
-          type="button"
-          aria-label="Notifikasi"
-          class="relative rounded-lg p-2 text-slate-500 transition hover:bg-slate-100"
-        >
-          <span class="material-symbols-outlined">notifications</span>
-          <span class="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-rose-500"></span>
-        </button>
-
-        <div class="h-6 w-px bg-slate-200"></div>
-
-        <div class="flex items-center gap-3">
-          <div
-            class="flex h-8 w-8 items-center justify-center rounded-full border border-purple-200 bg-purple-100 text-xs font-semibold text-purple-700"
-          >
-            AD
-          </div>
-          <div class="hidden leading-tight sm:block">
-            <p class="text-xs font-semibold">admin@gmail.com</p>
-            <p class="mt-1 text-[11px] font-medium text-[#582be8]">
-              Super Administrator
-            </p>
-          </div>
-          <a
-            href="#"
-            class="hidden rounded-lg px-2.5 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 sm:block"
-          >
-            Logout
-          </a>
-        </div>
-      </div>
-    </header>
-
-    <div class="flex min-h-[calc(100vh-65px)]">
-      <!-- Sidebar -->
-      <aside
-        class="hidden w-64 shrink-0 flex-col justify-between border-r border-slate-200 bg-white md:flex"
-      >
-        <nav class="space-y-1.5 p-4" aria-label="Menu Admin">
-          <p class="mb-3 px-3 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-            Main Menu
-          </p>
-
-          <NuxtLink to="/admin/dashboard" class="nav-item">
-            <span class="material-symbols-outlined">dashboard</span>
-            Dashboard
-          </NuxtLink>
-
-          <NuxtLink to="/admin/elections" class="nav-item justify-between">
-            <span class="flex items-center gap-3">
-              <span class="material-symbols-outlined">how_to_vote</span>
-              Elections
-            </span>
-            <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-800">
-              3 Aktif
-            </span>
-          </NuxtLink>
-
-          <NuxtLink to="/admin/voters" class="nav-item justify-between">
-            <span class="flex items-center gap-3">
-              <span class="material-symbols-outlined">groups</span>
-              Daftar Pemilih
-            </span>
-            <span class="text-[11px] text-slate-400">DPT</span>
-          </NuxtLink>
-
-          <NuxtLink to="/admin/candidates" class="nav-item">
-            <span class="material-symbols-outlined">person</span>
-            Kandidat & Paslon
-          </NuxtLink>
-
-          <NuxtLink to="/admin/audit" class="nav-item">
-            <span class="material-symbols-outlined">analytics</span>
-            Audit & Rekapitulasi
-          </NuxtLink>
-
-          <p class="mb-2 mt-6 px-3 pt-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-            Konfigurasi
-          </p>
-
-          <NuxtLink to="/admin/settings" class="nav-item nav-item-active">
-            <span class="material-symbols-outlined">settings</span>
-            Pengaturan Sistem
-          </NuxtLink>
-        </nav>
-
-        <div class="border-t border-slate-100 bg-slate-50/60 p-4">
-          <div class="rounded-xl border border-slate-200 bg-white p-3">
-            <div class="flex items-center gap-2 text-xs font-semibold text-slate-700">
-              <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
-              256-Bit SSL Enkripsi
-            </div>
-            <p class="mt-1 text-[11px] text-slate-500">
-              Konsensus node terverifikasi.
-            </p>
-            <div
-              class="mt-2.5 flex items-center justify-between border-t border-slate-100 pt-2 text-[10px] text-slate-400"
-            >
-              <span>v2.4.0-Production</span>
-              <span class="font-mono font-semibold text-[#582be8]">ONLINE</span>
-            </div>
-          </div>
-        </div>
-      </aside>
-
-      <!-- Main Content -->
-      <main class="min-w-0 flex-1 p-4 sm:p-6 lg:p-8">
-        <div class="mx-auto w-full max-w-[1600px] space-y-8">
           <!-- Page Header -->
           <section
             class="flex flex-col justify-between gap-5 pb-2 lg:flex-row lg:items-end"
@@ -726,9 +575,6 @@
           >
             A-Vote Admin Dashboard · System Configuration v2.4.0
           </footer>
-        </div>
-      </main>
-    </div>
   </div>
 </template>
 
@@ -1000,5 +846,4 @@ input[type='range'] {
   accent-color: #582be8;
 }
 </style>
-```
 
