@@ -435,8 +435,8 @@
           </a>
 
 
-          <a
-            href="#"
+          <NuxtLink
+            to="/voter/quick-count"
             class="group flex w-full items-center justify-center gap-2 rounded-lg bg-white px-6 py-3 text-center text-sm font-semibold shadow-sm transition hover:bg-[#eff4ff] sm:w-auto"
           >
 
@@ -462,7 +462,7 @@
               arrow_forward
             </span>
 
-          </a>
+          </NuxtLink>
 
         </div>
 
