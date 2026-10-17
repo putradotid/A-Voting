@@ -1,0 +1,255 @@
+export interface StudentMaster {
+  id: string
+  nim: string
+  name: string
+  initials: string
+  avatarColor: string
+  email: string
+  faculty: string
+  facultyCode: string
+  major: string
+  academicYear: string
+  semester: number
+  accountStatus: 'Aktif & Terverifikasi' | 'Perlu Verifikasi' | 'Nonaktif / Cuti'
+  statusNote?: string
+  academicStatus: 'Aktif (Reguler)' | 'Aktif (Transfer)' | 'Cuti Akademik'
+  authStatus: 'Kredensial Siap' | 'OTP / SSO Aktif' | 'Belum Digenerate' | 'Ditangguhkan'
+  authNote?: string
+  phone?: string
+  registeredAt: string
+}
+
+export const useStudentsMaster = () => {
+  return useState<StudentMaster[]>('masterStudents', () => [
+    {
+      id: 'MHS-001',
+      nim: '2208101012',
+      name: 'Muhammad Rizky Pratama',
+      initials: 'RP',
+      avatarColor: 'bg-purple-50 text-[#582be8]',
+      email: 'm.rizky@student.ac.id',
+      faculty: 'Fakultas Teknik',
+      facultyCode: 'FT',
+      major: 'S1 Teknik Informatika',
+      academicYear: '2022',
+      semester: 6,
+      accountStatus: 'Aktif & Terverifikasi',
+      academicStatus: 'Aktif (Reguler)',
+      authStatus: 'OTP / SSO Aktif',
+      authNote: 'Kredensial Siakad Terverifikasi',
+      phone: '0812-3456-7890',
+      registeredAt: '12 Agu 2022'
+    },
+    {
+      id: 'MHS-002',
+      nim: '2305202045',
+      name: 'Siti Nurhaliza',
+      initials: 'SN',
+      avatarColor: 'bg-slate-100 text-slate-600',
+      email: 'sitinur@student.ac.id',
+      faculty: 'Fakultas Ekonomika & Bisnis',
+      facultyCode: 'FEB',
+      major: 'S1 Akuntansi',
+      academicYear: '2023',
+      semester: 4,
+      accountStatus: 'Aktif & Terverifikasi',
+      academicStatus: 'Aktif (Reguler)',
+      authStatus: 'Kredensial Siap',
+      authNote: 'Undangan Aktivasi Terkirim',
+      phone: '0857-1122-3344',
+      registeredAt: '15 Agu 2023'
+    },
+    {
+      id: 'MHS-003',
+      nim: '2101303088',
+      name: 'Daniel Christian Hutapea',
+      initials: 'DC',
+      avatarColor: 'bg-purple-50 text-[#582be8]',
+      email: 'daniel.c@student.ac.id',
+      faculty: 'Fakultas Teknik',
+      facultyCode: 'FT',
+      major: 'S1 Teknik Elektro',
+      academicYear: '2021',
+      semester: 8,
+      accountStatus: 'Aktif & Terverifikasi',
+      academicStatus: 'Aktif (Reguler)',
+      authStatus: 'OTP / SSO Aktif',
+      authNote: 'Kredensial Siakad Terverifikasi',
+      phone: '0813-9988-7766',
+      registeredAt: '10 Agu 2021'
+    },
+    {
+      id: 'MHS-004',
+      nim: '2409404011',
+      name: 'Anisa Rahmawati',
+      initials: 'AR',
+      avatarColor: 'bg-rose-50 text-rose-700',
+      email: 'anisa.r@student.ac.id',
+      faculty: 'Fakultas Psikologi',
+      facultyCode: 'FPSI',
+      major: 'S1 Psikologi',
+      academicYear: '2024',
+      semester: 2,
+      accountStatus: 'Perlu Verifikasi',
+      statusNote: 'Data Tanggal Lahir Belum Lengkap',
+      academicStatus: 'Aktif (Reguler)',
+      authStatus: 'Belum Digenerate',
+      authNote: 'Perlu Validasi Siakad',
+      phone: '0821-4455-6677',
+      registeredAt: '18 Agu 2024'
+    },
+    {
+      id: 'MHS-005',
+      nim: '2208101099',
+      name: 'Farhan Al-Fikri',
+      initials: 'FA',
+      avatarColor: 'bg-purple-50 text-[#582be8]',
+      email: 'farhan.af@student.ac.id',
+      faculty: 'Fakultas Ilmu Komputer',
+      facultyCode: 'FASILKOM',
+      major: 'S1 Sistem Informasi',
+      academicYear: '2022',
+      semester: 6,
+      accountStatus: 'Aktif & Terverifikasi',
+      academicStatus: 'Aktif (Reguler)',
+      authStatus: 'OTP / SSO Aktif',
+      authNote: 'Kredensial Siakad Terverifikasi',
+      phone: '0812-7788-9900',
+      registeredAt: '12 Agu 2022'
+    },
+    {
+      id: 'MHS-006',
+      nim: '2301103022',
+      name: 'Bunga Citra Lestari',
+      initials: 'BC',
+      avatarColor: 'bg-emerald-50 text-emerald-700',
+      email: 'bunga.cl@student.ac.id',
+      faculty: 'Fakultas Hukum',
+      facultyCode: 'FH',
+      major: 'S1 Ilmu Hukum',
+      academicYear: '2023',
+      semester: 4,
+      accountStatus: 'Aktif & Terverifikasi',
+      academicStatus: 'Aktif (Reguler)',
+      authStatus: 'Kredensial Siap',
+      authNote: 'Undangan Aktivasi Terkirim',
+      phone: '0858-1234-5678',
+      registeredAt: '14 Agu 2023'
+    },
+    {
+      id: 'MHS-007',
+      nim: '2403105018',
+      name: 'Dimas Aditya Nugroho',
+      initials: 'DA',
+      avatarColor: 'bg-blue-50 text-blue-700',
+      email: 'dimas.an@student.ac.id',
+      faculty: 'Fakultas Kedokteran',
+      facultyCode: 'FK',
+      major: 'S1 Pendidikan Dokter',
+      academicYear: '2024',
+      semester: 2,
+      accountStatus: 'Aktif & Terverifikasi',
+      academicStatus: 'Aktif (Reguler)',
+      authStatus: 'OTP / SSO Aktif',
+      authNote: 'Kredensial Siakad Terverifikasi',
+      phone: '0812-8899-0011',
+      registeredAt: '19 Agu 2024'
+    },
+    {
+      id: 'MHS-008',
+      nim: '2108102040',
+      name: 'Rian Syahputra',
+      initials: 'RS',
+      avatarColor: 'bg-amber-50 text-amber-700',
+      email: 'rian.syah@student.ac.id',
+      faculty: 'Fakultas Teknik',
+      facultyCode: 'FT',
+      major: 'S1 Teknik Mesin',
+      academicYear: '2021',
+      semester: 8,
+      accountStatus: 'Nonaktif / Cuti',
+      statusNote: 'Cuti Semester Genap 2024/2025',
+      academicStatus: 'Cuti Akademik',
+      authStatus: 'Ditangguhkan',
+      authNote: 'Akses Bilik Ditangguhkan',
+      phone: '0813-1122-4455',
+      registeredAt: '11 Agu 2021'
+    },
+    {
+      id: 'MHS-009',
+      nim: '2108101001',
+      name: 'Alif Kurniawan',
+      initials: 'AK',
+      avatarColor: 'bg-purple-50 text-[#582be8]',
+      email: 'alif.k@student.ac.id',
+      faculty: 'Fakultas Teknik',
+      facultyCode: 'FT',
+      major: 'S1 Teknik Informatika',
+      academicYear: '2021',
+      semester: 8,
+      accountStatus: 'Aktif & Terverifikasi',
+      academicStatus: 'Aktif (Reguler)',
+      authStatus: 'OTP / SSO Aktif',
+      authNote: 'Kredensial Siakad Terverifikasi',
+      phone: '0812-9900-1122',
+      registeredAt: '10 Agu 2021'
+    },
+    {
+      id: 'MHS-010',
+      nim: '2102102008',
+      name: 'Chandra Wicaksana',
+      initials: 'CW',
+      avatarColor: 'bg-slate-100 text-slate-600',
+      email: 'chandra.w@student.ac.id',
+      faculty: 'Fakultas Ekonomika & Bisnis',
+      facultyCode: 'FEB',
+      major: 'S1 Manajemen',
+      academicYear: '2021',
+      semester: 8,
+      accountStatus: 'Aktif & Terverifikasi',
+      academicStatus: 'Aktif (Reguler)',
+      authStatus: 'Kredensial Siap',
+      authNote: 'Kredensial Siakad Terverifikasi',
+      phone: '0857-4433-2211',
+      registeredAt: '11 Agu 2021'
+    },
+    {
+      id: 'MHS-011',
+      nim: '2101103014',
+      name: 'Dewi Sartika',
+      initials: 'DS',
+      avatarColor: 'bg-emerald-50 text-emerald-700',
+      email: 'dewi.s@student.ac.id',
+      faculty: 'Fakultas Hukum',
+      facultyCode: 'FH',
+      major: 'S1 Ilmu Hukum',
+      academicYear: '2021',
+      semester: 8,
+      accountStatus: 'Aktif & Terverifikasi',
+      academicStatus: 'Aktif (Reguler)',
+      authStatus: 'OTP / SSO Aktif',
+      authNote: 'Kredensial Siakad Terverifikasi',
+      phone: '0812-3344-5566',
+      registeredAt: '12 Agu 2021'
+    },
+    {
+      id: 'MHS-012',
+      nim: '2205106019',
+      name: 'Gita Maharani',
+      initials: 'GM',
+      avatarColor: 'bg-rose-50 text-rose-700',
+      email: 'gita.m@student.ac.id',
+      faculty: 'Fakultas Psikologi',
+      facultyCode: 'FPSI',
+      major: 'S1 Psikologi',
+      academicYear: '2022',
+      semester: 6,
+      accountStatus: 'Aktif & Terverifikasi',
+      academicStatus: 'Aktif (Reguler)',
+      authStatus: 'OTP / SSO Aktif',
+      authNote: 'Kredensial Siakad Terverifikasi',
+      phone: '0813-5566-7788',
+      registeredAt: '15 Agu 2022'
+    }
+  ])
+}

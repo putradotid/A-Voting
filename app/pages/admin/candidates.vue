@@ -1,39 +1,433 @@
 <script setup lang="ts">
+import { ref, computed } from 'vue'
+import type {
+  ElectionCandidate,
+  CandidateType,
+  CandidateVerificationStatus
+} from '~/composables/useElectionCandidates'
+
 definePageMeta({
   layout: 'admin'
 })
+
+// ─── Shared Candidates Composable ────────────────────────────────────
+const {
+  candidatesDatabase,
+  getCandidatesByElection,
+  getCandidateStats,
+  addCandidate,
+  updateCandidate,
+  deleteCandidate,
+  canDeleteCandidate
+} = useElectionCandidates()
+
+// ─── Master Daftar Pemilihan (Mapping Referensi) ─────────────────────
+const electionsList = [
+  { id: 'all', name: 'Semua Agenda Pemilihan', shortName: 'Semua Agenda', code: 'ALL-ELECTIONS' },
+  { id: 'PEM-2025-01', name: 'Pemilihan Raya Ketua & Wakil BEM 2025', shortName: 'BEM 2025', code: 'PEMIRA-BEM-2025' },
+  { id: 'PEM-2025-02', name: 'DPM Fakultas Teknik 2025', shortName: 'DPM FT 2025', code: 'PEMIRA-DPMFT-2025' },
+  { id: 'PEM-2025-03', name: 'HMIF Informatika 2025', shortName: 'HMIF 2025', code: 'PEMIRA-HMIF-2025' },
+  { id: 'PEM-2025-04', name: 'HMM Manajemen 2025', shortName: 'HMM 2025', code: 'PEMIRA-HMM-2025' },
+  { id: 'PEM-2024-09', name: 'BEM Fakultas Hukum 2024/2025', shortName: 'BEM FH 2024', code: 'PEMIRA-BEMFH-2024' },
+  { id: 'PEM-2025-05', name: 'BEM Fakultas Ekonomika & Bisnis 2025', shortName: 'BEM FEB 2025', code: 'PEMIRA-BEMFEB-2025' }
+]
+
+function getElectionName(electionId: string): string {
+  const found = electionsList.find(e => e.id === electionId)
+  return found?.name || electionId
+}
+
+function getElectionCode(electionId: string): string {
+  const found = electionsList.find(e => e.id === electionId)
+  return found?.code || electionId
+}
+
+// ─── Filter & Search State ───────────────────────────────────────────
+const selectedElectionId = ref('all')
+const statusFilter = ref<'Semua' | 'Terverifikasi' | 'Menunggu' | 'Ditolak'>('Semua')
+const searchQuery = ref('')
+const sortAsc = ref(true)
+
+// ─── Toast Feedback System ───────────────────────────────────────────
+const toastMessage = ref('')
+const showToast = ref(false)
+let toastTimer: any = null
+function triggerToast(msg: string) {
+  toastMessage.value = msg
+  showToast.value = true
+  if (toastTimer) clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => {
+    showToast.value = false
+  }, 3500)
+}
+
+function downloadArchive() {
+  triggerToast('Rekap berkas KPU (ZIP) sedang disiapkan. Seluruh dokumen visi-misi dan syarat sah diarsipkan.')
+}
+
+function toggleSort() {
+  sortAsc.value = !sortAsc.value
+  triggerToast(`Nomor urut calon diurutkan secara ${sortAsc.value ? 'Menaik (01 → 05)' : 'Menurun (05 → 01)'}.`)
+}
+
+// ─── Dynamic Statistics ──────────────────────────────────────────────
+const stats = computed(() => getCandidateStats(selectedElectionId.value))
+
+// ─── Candidates by Selected Election ─────────────────────────────────
+const electionCandidates = computed(() => {
+  if (selectedElectionId.value === 'all') {
+    return candidatesDatabase.value
+  }
+  return getCandidatesByElection(selectedElectionId.value)
+})
+
+// Counts per status for filter tabs
+const countSemua = computed(() => electionCandidates.value.length)
+const countTerverifikasi = computed(() => electionCandidates.value.filter(c => c.status === 'Terverifikasi KPU').length)
+const countMenunggu = computed(() => electionCandidates.value.filter(c => c.status === 'Menunggu Berkas' || c.status === 'Revisi Dukungan').length)
+const countDitolak = computed(() => electionCandidates.value.filter(c => c.status === 'Ditolak').length)
+
+// ─── Filtered & Sorted Candidates ────────────────────────────────────
+const filteredCandidates = computed(() => {
+  return electionCandidates.value.filter(c => {
+    // 1. Status Filter
+    let matchStatus = true
+    if (statusFilter.value === 'Terverifikasi') {
+      matchStatus = c.status === 'Terverifikasi KPU'
+    } else if (statusFilter.value === 'Menunggu') {
+      matchStatus = c.status === 'Menunggu Berkas' || c.status === 'Revisi Dukungan'
+    } else if (statusFilter.value === 'Ditolak') {
+      matchStatus = c.status === 'Ditolak'
+    }
+
+    // 2. Search Query (Nama, NIM, Nomor Urut, Koalisi)
+    const q = searchQuery.value.trim().toLowerCase()
+    let matchSearch = true
+    if (q) {
+      const matchName = c.name.toLowerCase().includes(q)
+      const matchNumber = c.ballotNumber.toLowerCase().includes(q)
+      const matchLeadName = c.leadCandidate.name.toLowerCase().includes(q)
+      const matchLeadNim = c.leadCandidate.nim.toLowerCase().includes(q)
+      const matchViceName = c.viceCandidate ? c.viceCandidate.name.toLowerCase().includes(q) : false
+      const matchViceNim = c.viceCandidate ? c.viceCandidate.nim.toLowerCase().includes(q) : false
+      const matchCoalition = (c.coalition || '').toLowerCase().includes(q)
+      matchSearch = matchName || matchNumber || matchLeadName || matchLeadNim || matchViceName || matchViceNim || matchCoalition
+    }
+
+    return matchStatus && matchSearch
+  }).sort((a, b) => {
+    const cmp = a.ballotNumber.localeCompare(b.ballotNumber, undefined, { numeric: true })
+    return sortAsc.value ? cmp : -cmp
+  })
+})
+
+// Split for aesthetic representation: Pair (Paslon Cards) and Single (Legislatif/Table)
+const pairCandidates = computed(() => filteredCandidates.value.filter(c => c.type === 'pair'))
+const singleCandidates = computed(() => filteredCandidates.value.filter(c => c.type === 'single'))
+
+// ─── Quick Actions & Verifikasi ──────────────────────────────────────
+function quickVerify(c: ElectionCandidate) {
+  const res = updateCandidate(c.id, {
+    status: 'Terverifikasi KPU'
+  })
+  if (res.success) {
+    triggerToast(`Kandidat "${c.name}" (#${c.ballotNumber}) berhasil diverifikasi dan disahkan masuk bilik suara digital.`)
+  } else {
+    triggerToast(res.message)
+  }
+}
+
+// ─── Modals State (Create, Edit, Detail, Delete) ───────────────────────
+const showCandidateModal = ref(false)
+const candidateModalMode = ref<'create' | 'edit'>('create')
+const editingCandidateId = ref<string | null>(null)
+const candidateFormError = ref('')
+
+interface CandidateFormState {
+  electionId: string
+  type: CandidateType
+  ballotNumber: string
+  name: string
+  tagline: string
+  coalition: string
+  color: string
+  photo: string
+  status: CandidateVerificationStatus
+  leadName: string
+  leadNim: string
+  leadFaculty: string
+  leadMajor: string
+  leadSemester: number
+  leadGpa: number
+  viceName: string
+  viceNim: string
+  viceFaculty: string
+  viceMajor: string
+  viceSemester: number
+  viceGpa: number
+  visi: string
+  misiText: string
+  pillarsText: string
+}
+
+const defaultCandidateForm = (): CandidateFormState => ({
+  electionId: selectedElectionId.value === 'all' ? 'PEM-2025-01' : selectedElectionId.value,
+  type: 'pair',
+  ballotNumber: '',
+  name: '',
+  tagline: '',
+  coalition: '',
+  color: '#582be8',
+  photo: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+  status: 'Menunggu Berkas',
+  leadName: '',
+  leadNim: '',
+  leadFaculty: '',
+  leadMajor: '',
+  leadSemester: 6,
+  leadGpa: 3.5,
+  viceName: '',
+  viceNim: '',
+  viceFaculty: '',
+  viceMajor: '',
+  viceSemester: 6,
+  viceGpa: 3.5,
+  visi: '',
+  misiText: '',
+  pillarsText: ''
+})
+
+const candidateForm = ref<CandidateFormState>(defaultCandidateForm())
+
+function openCreateCandidateModal() {
+  candidateModalMode.value = 'create'
+  editingCandidateId.value = null
+  candidateFormError.value = ''
+
+  const targetElection = selectedElectionId.value === 'all' ? 'PEM-2025-01' : selectedElectionId.value
+  const listInTarget = getCandidatesByElection(targetElection)
+  const existingNums = listInTarget.map(c => parseInt(c.ballotNumber, 10)).filter(n => !isNaN(n))
+  const nextNum = existingNums.length > 0 ? Math.max(...existingNums) + 1 : 1
+  const suggestedBallot = String(nextNum).padStart(2, '0')
+
+  candidateForm.value = {
+    ...defaultCandidateForm(),
+    electionId: targetElection,
+    type: targetElection === 'PEM-2025-02' ? 'single' : 'pair',
+    ballotNumber: suggestedBallot
+  }
+  showCandidateModal.value = true
+}
+
+function openEditCandidateModal(c: ElectionCandidate) {
+  candidateModalMode.value = 'edit'
+  editingCandidateId.value = c.id
+  candidateFormError.value = ''
+  candidateForm.value = {
+    electionId: c.electionId,
+    type: c.type,
+    ballotNumber: c.ballotNumber,
+    name: c.name,
+    tagline: c.tagline || '',
+    coalition: c.coalition || '',
+    color: c.color || '#582be8',
+    photo: c.photo || '',
+    status: c.status,
+    leadName: c.leadCandidate.name,
+    leadNim: c.leadCandidate.nim,
+    leadFaculty: c.leadCandidate.faculty,
+    leadMajor: c.leadCandidate.major,
+    leadSemester: c.leadCandidate.semester || 6,
+    leadGpa: c.leadCandidate.gpa || 3.5,
+    viceName: c.viceCandidate?.name || '',
+    viceNim: c.viceCandidate?.nim || '',
+    viceFaculty: c.viceCandidate?.faculty || '',
+    viceMajor: c.viceCandidate?.major || '',
+    viceSemester: c.viceCandidate?.semester || 6,
+    viceGpa: c.viceCandidate?.gpa || 3.5,
+    visi: c.visi || '',
+    misiText: (c.misi || []).join('\n'),
+    pillarsText: (c.pillars || []).join('\n')
+  }
+  showCandidateModal.value = true
+}
+
+function saveCandidateForm() {
+  candidateFormError.value = ''
+  const f = candidateForm.value
+
+  if (!f.ballotNumber.trim()) {
+    candidateFormError.value = 'Nomor urut resmi wajib diisi.'
+    return
+  }
+  if (!f.name.trim()) {
+    candidateFormError.value = 'Nama paslon atau kandidat wajib diisi.'
+    return
+  }
+  if (!f.leadName.trim() || !f.leadNim.trim()) {
+    candidateFormError.value = 'Nama dan NIM calon utama/ketua wajib diisi.'
+    return
+  }
+  if (f.type === 'pair') {
+    if (!f.viceName.trim() || !f.viceNim.trim()) {
+      candidateFormError.value = 'Untuk pasangan calon, nama dan NIM wakil ketua wajib diisi.'
+      return
+    }
+  }
+
+  const misi = f.misiText.split('\n').map(s => s.trim()).filter(Boolean)
+  const pillars = f.pillarsText.split('\n').map(s => s.trim()).filter(Boolean)
+
+  if (candidateModalMode.value === 'create') {
+    const res = addCandidate({
+      electionId: f.electionId,
+      type: f.type,
+      ballotNumber: f.ballotNumber,
+      name: f.name.trim(),
+      tagline: f.tagline.trim(),
+      coalition: f.coalition.trim() || (f.type === 'pair' ? 'Koalisi Paslon' : 'Independen'),
+      color: f.color || '#582be8',
+      photo: f.photo.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+      status: f.status,
+      leadCandidate: {
+        name: f.leadName.trim(),
+        nim: f.leadNim.trim(),
+        faculty: f.leadFaculty.trim() || 'Fakultas Teknik',
+        major: f.leadMajor.trim() || 'Teknik Informatika',
+        semester: Number(f.leadSemester) || 6,
+        gpa: Number(f.leadGpa) || 3.5
+      },
+      viceCandidate: f.type === 'pair' ? {
+        name: f.viceName.trim(),
+        nim: f.viceNim.trim(),
+        faculty: f.viceFaculty.trim() || 'Fakultas Teknik',
+        major: f.viceMajor.trim() || 'Teknik Informatika',
+        semester: Number(f.viceSemester) || 6,
+        gpa: Number(f.viceGpa) || 3.5
+      } : undefined,
+      visi: f.visi.trim() || 'Mewujudkan kepemimpinan mahasiswa yang berintegritas dan berdampak.',
+      misi: misi.length > 0 ? misi : ['Digitalisasi layanan administrasi kemahasiswaan.'],
+      pillars: pillars.length > 0 ? pillars : ['Tata Kelola Organisasi Transparan', 'Advokasi Mahasiswa'],
+      documents: [
+        { name: 'KRS & Transkrip IPK (≥ 3.25)', status: f.leadGpa >= 3.25 ? 'valid' : 'pending' },
+        { name: 'Surat Bebas Sanksi Akademik & SKCK', status: f.status === 'Terverifikasi KPU' ? 'valid' : 'pending' },
+        { name: 'Bukti Dukungan Mahasiswa Sah', status: f.status === 'Terverifikasi KPU' ? 'valid' : 'pending' }
+      ],
+      votesCount: 0
+    })
+
+    if (!res.success) {
+      candidateFormError.value = res.message
+      return
+    }
+
+    triggerToast(res.message)
+    showCandidateModal.value = false
+  } else if (candidateModalMode.value === 'edit' && editingCandidateId.value) {
+    const res = updateCandidate(editingCandidateId.value, {
+      type: f.type,
+      ballotNumber: f.ballotNumber,
+      name: f.name.trim(),
+      tagline: f.tagline.trim(),
+      coalition: f.coalition.trim(),
+      color: f.color || '#582be8',
+      photo: f.photo.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+      status: f.status,
+      leadCandidate: {
+        name: f.leadName.trim(),
+        nim: f.leadNim.trim(),
+        faculty: f.leadFaculty.trim(),
+        major: f.leadMajor.trim(),
+        semester: Number(f.leadSemester) || 6,
+        gpa: Number(f.leadGpa) || 3.5
+      },
+      viceCandidate: f.type === 'pair' ? {
+        name: f.viceName.trim(),
+        nim: f.viceNim.trim(),
+        faculty: f.viceFaculty.trim(),
+        major: f.viceMajor.trim(),
+        semester: Number(f.viceSemester) || 6,
+        gpa: Number(f.viceGpa) || 3.5
+      } : undefined,
+      visi: f.visi.trim(),
+      misi: misi.length > 0 ? misi : undefined,
+      pillars: pillars.length > 0 ? pillars : undefined
+    })
+
+    if (!res.success) {
+      candidateFormError.value = res.message
+      return
+    }
+
+    triggerToast(res.message)
+    showCandidateModal.value = false
+  }
+}
+
+// Detail Modal
+const showDetailCandidateModal = ref(false)
+const selectedDetailCandidate = ref<ElectionCandidate | null>(null)
+function openDetailCandidate(c: ElectionCandidate) {
+  selectedDetailCandidate.value = c
+  showDetailCandidateModal.value = true
+}
+
+// Delete Modal with business rule protection
+const showDeleteCandidateModal = ref(false)
+const candidateToDelete = ref<ElectionCandidate | null>(null)
+const deleteValidation = ref<{ allowed: boolean; reason?: string }>({ allowed: true })
+
+function promptDeleteCandidate(c: ElectionCandidate) {
+  candidateToDelete.value = c
+  deleteValidation.value = canDeleteCandidate(c.id)
+  showDeleteCandidateModal.value = true
+}
+
+function confirmDeleteCandidate() {
+  if (!candidateToDelete.value) return
+  const res = deleteCandidate(candidateToDelete.value.id)
+  if (res.success) {
+    triggerToast(res.message)
+  } else {
+    triggerToast(`Gagal: ${res.message}`)
+  }
+  showDeleteCandidateModal.value = false
+  candidateToDelete.value = null
+}
 </script>
 
 <template>
-  <div class="w-full flex flex-col gap-8">
+  <div class="w-full flex flex-col gap-8 antialiased">
     <!-- Page Heading -->
     <section class="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
       <div>
         <div class="mb-2 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-wider text-slate-400">
           <span>A-Vote</span>
           <span>/</span>
-          <span>Pemilu Mahasiswa 2025</span>
+          <span>{{ selectedElectionId === 'all' ? 'Seluruh Pemilihan' : getElectionName(selectedElectionId) }}</span>
           <span>/</span>
           <span class="font-semibold text-[#582be8]">Kandidat &amp; Paslon</span>
         </div>
 
         <h1 class="text-2xl lg:text-3xl font-extrabold text-slate-900 tracking-tight">Kandidat &amp; Paslon</h1>
         <p class="mt-1 max-w-3xl text-xs sm:text-sm text-slate-500 leading-relaxed">
-          Kelola data pasangan calon dan kandidat independen, verifikasi kelengkapan berkas visi-misi, nomor urut resmi, serta status penetapan bilik suara.
+          Pusat pengelolaan dan verifikasi berkas seluruh pasangan calon dan kandidat independen kampus. Sinkron otomatis dengan bilik suara digital per pemilihan.
         </p>
       </div>
 
       <div class="flex flex-wrap items-center gap-3 shrink-0">
         <button
           type="button"
-          class="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 shadow-sm transition"
+          @click="downloadArchive"
+          class="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 shadow-sm transition cursor-pointer"
         >
           <span class="material-symbols-outlined text-[18px] text-[#582be8]">folder_zip</span>
           Unduh Rekap Berkas
         </button>
         <button
           type="button"
-          class="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-[#582be8] hover:bg-[#471ec7] rounded-xl shadow-md shadow-purple-600/25 transition"
+          @click="openCreateCandidateModal"
+          class="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-[#582be8] hover:bg-[#471ec7] rounded-xl shadow-md shadow-purple-600/25 transition cursor-pointer"
         >
           <span class="material-symbols-outlined text-[18px]">add</span>
           Tambah Paslon / Kandidat
@@ -41,7 +435,7 @@ definePageMeta({
       </div>
     </section>
 
-    <!-- Statistics -->
+    <!-- Statistics Strip (Dynamic based on selected election) -->
     <section class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:border-purple-200 hover:shadow transition">
         <div class="flex items-center justify-between">
@@ -50,25 +444,37 @@ definePageMeta({
             <span class="material-symbols-outlined text-[24px]">groups</span>
           </div>
         </div>
-        <p class="mt-4 text-3xl font-extrabold text-[#582be8]">10 <span class="text-xs font-normal text-slate-500">Terdaftar</span></p>
-        <p class="mt-2 text-xs text-slate-400">Dari 4 agenda pemilihan aktif/mendatang</p>
+        <p class="mt-4 text-3xl font-extrabold text-[#582be8]">
+          {{ stats.total }} <span class="text-xs font-normal text-slate-500">Terdaftar</span>
+        </p>
+        <p class="mt-2 text-xs text-slate-400">
+          {{ selectedElectionId === 'all' ? 'Dari seluruh agenda pemilihan aktif/mendatang' : getElectionName(selectedElectionId) }}
+        </p>
       </div>
 
       <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:border-emerald-200 hover:shadow transition">
         <div class="flex items-center justify-between">
           <p class="font-mono text-[10px] font-semibold uppercase tracking-wider text-slate-500">Berkas Terverifikasi</p>
-          <span class="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800">80% Memenuhi</span>
+          <span class="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800">
+            {{ stats.verifiedPct }}% Memenuhi
+          </span>
         </div>
-        <p class="mt-4 text-3xl font-extrabold text-emerald-600">8 <span class="text-xs font-normal text-emerald-700">Lolos KPU</span></p>
+        <p class="mt-4 text-3xl font-extrabold text-emerald-600">
+          {{ stats.verified }} <span class="text-xs font-normal text-emerald-700">Lolos KPU</span>
+        </p>
         <p class="mt-2 text-xs text-slate-400">Dinyatakan sah masuk bilik e-voting</p>
       </div>
 
       <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:border-amber-200 hover:shadow transition">
         <div class="flex items-center justify-between">
           <p class="font-mono text-[10px] font-semibold uppercase tracking-wider text-slate-500">Menunggu Verifikasi</p>
-          <span class="rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-bold text-amber-800">2 Berkas Baru</span>
+          <span class="rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-bold text-amber-800">
+            {{ stats.pending }} Berkas
+          </span>
         </div>
-        <p class="mt-4 text-3xl font-extrabold text-amber-600">2 <span class="text-xs font-normal text-amber-700">Paslon</span></p>
+        <p class="mt-4 text-3xl font-extrabold text-amber-600">
+          {{ stats.pending }} <span class="text-xs font-normal text-amber-700">Calon</span>
+        </p>
         <p class="mt-2 text-xs text-slate-400">Perlu pemeriksaan berkas LPJ dan visi</p>
       </div>
 
@@ -79,303 +485,251 @@ definePageMeta({
             <span class="material-symbols-outlined text-[24px]">verified</span>
           </div>
         </div>
-        <p class="mt-4 text-3xl font-extrabold text-[#582be8]">Selesai <span class="text-xs font-normal text-slate-500">(100%)</span></p>
-        <p class="mt-2 text-xs text-slate-400">Undian nomor urut resmi tuntas</p>
+        <p class="mt-4 text-3xl font-extrabold text-[#582be8]">
+          {{ stats.withNumber }} <span class="text-xs font-normal text-slate-500">Calon (100%)</span>
+        </p>
+        <p class="mt-2 text-xs text-slate-400">Nomor urut unik dalam pemilihan</p>
       </div>
     </section>
 
-    <!-- Filters -->
+    <!-- Filters Section -->
     <section class="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm xl:flex-row xl:items-center xl:justify-between">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <select class="min-h-10 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-[#582be8] cursor-pointer shadow-sm">
-          <option>Pemilihan Raya Ketua &amp; Wakil BEM 2025 (3 Paslon)</option>
-          <option>DPM Fakultas Teknik 2025 (5 Kandidat)</option>
-          <option>HMIF Informatika 2025 (2 Paslon)</option>
+        <!-- Dropdown Pemilihan Reaktif -->
+        <select
+          v-model="selectedElectionId"
+          class="min-h-10 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-[#582be8] cursor-pointer shadow-sm"
+        >
+          <option v-for="e in electionsList" :key="e.id" :value="e.id">
+            {{ e.name }} ({{ getCandidateStats(e.id).total }} Calon)
+          </option>
         </select>
 
+        <!-- Filter Status Verifikasi -->
         <div class="flex gap-1.5 overflow-x-auto">
-          <button type="button" class="whitespace-nowrap rounded-xl bg-[#582be8] px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm shadow-purple-600/25">Semua (3)</button>
-          <button type="button" class="whitespace-nowrap rounded-xl bg-white border border-slate-200 px-3.5 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900">Terverifikasi (3)</button>
-          <button type="button" class="whitespace-nowrap rounded-xl bg-white border border-slate-200 px-3.5 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900">Menunggu (0)</button>
-          <button type="button" class="whitespace-nowrap rounded-xl bg-white border border-slate-200 px-3.5 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900">Ditolak (0)</button>
+          <button
+            type="button"
+            @click="statusFilter = 'Semua'"
+            :class="[
+              'whitespace-nowrap rounded-xl px-3.5 py-1.5 text-xs font-semibold transition cursor-pointer',
+              statusFilter === 'Semua'
+                ? 'bg-[#582be8] text-white shadow-sm shadow-purple-600/25'
+                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+            ]"
+          >
+            Semua ({{ countSemua }})
+          </button>
+          <button
+            type="button"
+            @click="statusFilter = 'Terverifikasi'"
+            :class="[
+              'whitespace-nowrap rounded-xl px-3.5 py-1.5 text-xs font-semibold transition cursor-pointer',
+              statusFilter === 'Terverifikasi'
+                ? 'bg-[#582be8] text-white shadow-sm shadow-purple-600/25'
+                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+            ]"
+          >
+            Terverifikasi ({{ countTerverifikasi }})
+          </button>
+          <button
+            type="button"
+            @click="statusFilter = 'Menunggu'"
+            :class="[
+              'whitespace-nowrap rounded-xl px-3.5 py-1.5 text-xs font-semibold transition cursor-pointer',
+              statusFilter === 'Menunggu'
+                ? 'bg-[#582be8] text-white shadow-sm shadow-purple-600/25'
+                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+            ]"
+          >
+            Menunggu ({{ countMenunggu }})
+          </button>
+          <button
+            type="button"
+            @click="statusFilter = 'Ditolak'"
+            :class="[
+              'whitespace-nowrap rounded-xl px-3.5 py-1.5 text-xs font-semibold transition cursor-pointer',
+              statusFilter === 'Ditolak'
+                ? 'bg-[#582be8] text-white shadow-sm shadow-purple-600/25'
+                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+            ]"
+          >
+            Ditolak ({{ countDitolak }})
+          </button>
         </div>
       </div>
 
       <div class="flex flex-col gap-2.5 sm:flex-row sm:items-center">
         <div class="relative min-w-0 flex-1 sm:w-72">
           <input
+            v-model="searchQuery"
             type="text"
             placeholder="Cari nama paslon, NIM, nomor urut..."
             class="w-full min-h-10 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-xs text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-[#582be8] focus:bg-white"
           />
         </div>
-        <button type="button" class="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition">
+        <button
+          type="button"
+          @click="toggleSort"
+          class="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition cursor-pointer"
+          :title="sortAsc ? 'Urutkan Nomor Terbesar' : 'Urutkan Nomor Terkecil'"
+        >
           <span class="material-symbols-outlined text-[18px]">swap_vert</span>
-          Atur Nomor Urut
+          Atur Nomor Urut ({{ sortAsc ? '01→05' : '05→01' }})
         </button>
       </div>
     </section>
 
-    <!-- BEM Candidates -->
-    <section>
+    <!-- SECTION 1: Pasangan Calon (Eksekutif) Grid Cards -->
+    <section v-if="pairCandidates.length > 0">
       <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div class="flex flex-wrap items-center gap-3">
-          <h2 class="text-lg font-bold text-slate-900">Pasangan Calon Tetap BEM 2025</h2>
-          <span class="rounded-full bg-purple-50 px-2.5 py-0.5 font-mono text-[10px] font-semibold text-[#582be8]">3 Paslon Resmi</span>
+          <h2 class="text-lg font-bold text-slate-900">
+            {{ selectedElectionId === 'all' ? 'Daftar Pasangan Calon Tetap' : 'Pasangan Calon Tetap ' + getElectionName(selectedElectionId) }}
+          </h2>
+          <span class="rounded-full bg-purple-50 px-2.5 py-0.5 font-mono text-[10px] font-semibold text-[#582be8]">
+            {{ pairCandidates.length }} Paslon Resmi
+          </span>
         </div>
-        <span class="font-mono text-[10px] text-slate-400">Bilik Suara #PEMIRA-BEM-2025</span>
+        <span class="font-mono text-[10px] text-slate-400">
+          Bilik Suara #{{ getElectionCode(selectedElectionId) }}
+        </span>
       </div>
 
       <div class="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <!-- Paslon 01 -->
-        <article class="flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:border-purple-200 hover:shadow-md">
+        <article
+          v-for="c in pairCandidates"
+          :key="c.id"
+          class="flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:border-purple-200 hover:shadow-md"
+        >
           <div class="flex-1 space-y-5 p-5">
+            <!-- Header: Nomor Urut & Status -->
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-3">
-                <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#582be8] text-xl font-extrabold text-white shadow-sm">01</div>
+                <div
+                  class="flex h-12 w-12 items-center justify-center rounded-2xl text-xl font-extrabold text-white shadow-sm"
+                  :style="{ backgroundColor: c.color || '#582be8' }"
+                >
+                  {{ c.ballotNumber }}
+                </div>
                 <div>
-                  <p class="font-mono text-[10px] font-semibold uppercase tracking-wider text-slate-400">Nomor Urut Resmi</p>
-                  <span class="mt-1 inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-semibold text-emerald-800">
-                    <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-                    Terverifikasi KPU
+                  <p class="font-mono text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                    Nomor Urut Resmi · {{ c.electionId }}
+                  </p>
+                  <span
+                    :class="[
+                      'mt-1 inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-semibold',
+                      c.status === 'Terverifikasi KPU' ? 'bg-emerald-100 text-emerald-800' :
+                      c.status === 'Ditolak' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'
+                    ]"
+                  >
+                    <span
+                      :class="[
+                        'h-1.5 w-1.5 rounded-full',
+                        c.status === 'Terverifikasi KPU' ? 'bg-emerald-500' :
+                        c.status === 'Ditolak' ? 'bg-red-500' : 'bg-amber-500'
+                      ]"
+                    ></span>
+                    {{ c.status }}
                   </span>
                 </div>
               </div>
-              <button type="button" class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition">
-                <span class="material-symbols-outlined text-[20px]">more_vert</span>
+
+              <!-- Quick action more -->
+              <button
+                type="button"
+                @click="promptDeleteCandidate(c)"
+                class="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 transition"
+                title="Hapus kandidat"
+              >
+                <span class="material-symbols-outlined text-[20px]">delete</span>
               </button>
             </div>
 
+            <!-- Foto & Nama Paslon Hero -->
             <div class="relative h-48 overflow-hidden rounded-xl bg-purple-50 border border-slate-100">
               <img
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuBUExGpIuQjTmx2t9uax_Q5HJRcEObG8QLy91Pwz4WVcQeaT4vw3FAEZF5ZdtptXSgG0XRhi0AaGcT-45Ie2Ii51DfEgU_F3Z7jnkcUWMwnP6UtkEp5guzaiD20rUJKDdYk71aKL3j38287bX9FoWzJ5qJZC_YO4H_w1EMjuPm_g6K44vPEPtviGAAbULzHDJ8u65BGgHR4AfMHoUARCeR9j9CBJ4DFxhKiagiMctRqTV5pwdaEjiHCPA"
-                alt="Foto pasangan calon Farhan dan Nabila"
+                :src="c.photo"
+                :alt="'Foto pasangan calon ' + c.name"
                 class="h-full w-full object-cover object-top"
+                loading="lazy"
               />
               <div class="absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-slate-950/80 to-transparent p-4 text-white">
-                <span class="w-fit rounded bg-[#582be8]/90 px-2 py-0.5 text-[10px] font-semibold">BEM FT-FEB</span>
-                <h3 class="mt-1.5 text-lg font-bold">Farhan &amp; Nabila</h3>
+                <span
+                  class="w-fit rounded px-2 py-0.5 text-[10px] font-semibold backdrop-blur-sm"
+                  :style="{ backgroundColor: c.color ? `${c.color}dd` : 'rgba(88,43,232,0.9)' }"
+                >
+                  {{ c.coalition || 'Paslon Resmi' }}
+                </span>
+                <h3 class="mt-1.5 text-lg font-bold">{{ c.name }}</h3>
               </div>
             </div>
 
+            <!-- Lead & Vice Candidate Meta -->
             <div class="space-y-2">
               <div class="rounded-xl border border-slate-100 bg-slate-50/80 p-3">
-                <p class="text-[10px] font-bold uppercase text-[#582be8]">Calon Ketua BEM</p>
-                <p class="mt-1 text-sm font-bold text-slate-900">Muhammad Farhan</p>
-                <p class="mt-1 text-xs text-slate-500">NIM 2108101012 • S1 Teknik Informatika (FT)</p>
+                <p class="text-[10px] font-bold uppercase text-[#582be8]">Calon Ketua</p>
+                <p class="mt-1 text-sm font-bold text-slate-900">{{ c.leadCandidate.name }}</p>
+                <p class="mt-1 text-xs text-slate-500">NIM {{ c.leadCandidate.nim }} • {{ c.leadCandidate.major }} ({{ c.leadCandidate.faculty }})</p>
               </div>
-              <div class="rounded-xl border border-slate-100 bg-slate-50/80 p-3">
-                <p class="text-[10px] font-bold uppercase text-[#582be8]">Calon Wakil Ketua BEM</p>
-                <p class="mt-1 text-sm font-bold text-slate-900">Nabila Putri</p>
-                <p class="mt-1 text-xs text-slate-500">NIM 2102102045 • S1 Akuntansi (FEB)</p>
+
+              <div v-if="c.viceCandidate" class="rounded-xl border border-slate-100 bg-slate-50/80 p-3">
+                <p class="text-[10px] font-bold uppercase text-[#582be8]">Calon Wakil Ketua</p>
+                <p class="mt-1 text-sm font-bold text-slate-900">{{ c.viceCandidate.name }}</p>
+                <p class="mt-1 text-xs text-slate-500">NIM {{ c.viceCandidate.nim }} • {{ c.viceCandidate.major }} ({{ c.viceCandidate.faculty }})</p>
               </div>
             </div>
 
+            <!-- Tagline Slogan -->
             <div class="rounded-xl border border-purple-100/60 bg-purple-50/60 p-3 text-center text-xs font-semibold italic text-[#582be8]">
-              “Sinergi Nyata, Berdampak Bersama”
+              {{ c.tagline || '“Sinergi Nyata, Berdampak Bersama”' }}
             </div>
 
-            <div>
-              <p class="mb-2.5 font-mono text-[10px] font-bold uppercase tracking-wider text-slate-400">Pilar Program Kerja</p>
-              <ul class="space-y-2 text-xs leading-5">
-                <li class="flex gap-2"><span class="material-symbols-outlined text-base text-[#582be8]">check_circle</span><span><strong>Digitalisasi Ormawa:</strong> Satu pintu administrasi terpadu</span></li>
-                <li class="flex gap-2"><span class="material-symbols-outlined text-base text-[#582be8]">check_circle</span><span><strong>Advokasi Transparan:</strong> Pelayanan UKT tanggap 24/7</span></li>
-                <li class="flex gap-2"><span class="material-symbols-outlined text-base text-[#582be8]">check_circle</span><span><strong>Beasiswa Kampus:</strong> Akses pendanaan riset merata</span></li>
+            <!-- Pilar Program Kerja -->
+            <div v-if="c.pillars && c.pillars.length > 0">
+              <p class="mb-2 font-mono text-[10px] font-bold uppercase tracking-wider text-slate-400">Pilar Program Kerja</p>
+              <ul class="space-y-1.5 text-xs leading-5">
+                <li v-for="(p, idx) in c.pillars.slice(0, 3)" :key="idx" class="flex gap-2">
+                  <span class="material-symbols-outlined text-base text-[#582be8] shrink-0">check_circle</span>
+                  <span class="line-clamp-1">{{ p }}</span>
+                </li>
               </ul>
             </div>
 
-            <div class="space-y-2.5 border-t border-slate-100 pt-4 text-xs">
+            <!-- Persyaratan & Kelengkapan Berkas -->
+            <div class="space-y-2 border-t border-slate-100 pt-3.5 text-xs">
               <div class="flex justify-between gap-2">
                 <span class="text-slate-500">IPK &amp; SKCK</span>
                 <span class="font-semibold text-emerald-700">Lengkap (Valid)</span>
               </div>
               <div class="flex justify-between gap-2">
-                <span class="text-slate-500">Rekomendasi Fakultas</span>
-                <span class="font-semibold text-emerald-700">Disetujui Dekanat</span>
-              </div>
-              <div class="flex justify-between gap-2">
-                <span class="text-slate-500">Visi Misi</span>
-                <a href="#" class="font-semibold text-[#582be8] hover:underline">PDF (Unduh)</a>
+                <span class="text-slate-500">Status Bilik Suara</span>
+                <span
+                  :class="[
+                    'font-semibold',
+                    c.isInBallot ? 'text-emerald-700' : 'text-amber-700'
+                  ]"
+                >
+                  {{ c.isInBallot ? '✓ Siap Masuk Bilik' : 'Menunggu Penetapan' }}
+                </span>
               </div>
             </div>
           </div>
 
+          <!-- Action Buttons -->
           <div class="flex gap-2 px-5 pb-5">
-            <button type="button" class="inline-flex items-center justify-center gap-1 flex-1 rounded-xl border border-slate-200 bg-white py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-sm transition">
+            <button
+              type="button"
+              @click="openDetailCandidate(c)"
+              class="inline-flex items-center justify-center gap-1 flex-1 rounded-xl border border-slate-200 bg-white py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-sm transition cursor-pointer"
+            >
               <span class="material-symbols-outlined text-base">visibility</span>
               Lihat Detail
             </button>
-            <button type="button" class="inline-flex items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-sm transition">
-              <span class="material-symbols-outlined text-base">edit</span>
-              Edit
-            </button>
-          </div>
-        </article>
-
-        <!-- Paslon 02 -->
-        <article class="flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:border-purple-200 hover:shadow-md">
-          <div class="flex-1 space-y-5 p-5">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-3">
-                <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-600 text-xl font-extrabold text-white shadow-sm">02</div>
-                <div>
-                  <p class="font-mono text-[10px] font-semibold uppercase tracking-wider text-slate-400">Nomor Urut Resmi</p>
-                  <span class="mt-1 inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-semibold text-emerald-800">
-                    <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-                    Terverifikasi KPU
-                  </span>
-                </div>
-              </div>
-              <button type="button" class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition">
-                <span class="material-symbols-outlined text-[20px]">more_vert</span>
-              </button>
-            </div>
-
-            <div class="relative h-48 overflow-hidden rounded-xl bg-indigo-50 border border-slate-100">
-              <img
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuDUZUXWyq8lHl78RSQTBsTkQzxcLwqf0PZM2ckU4ns1ZNstpAleqx4vYBT4v5V-4qB_aUIC63ui3Ai7fKkcwaWmLiCyXsyC7VGjAyCIUNojE372e86v8JTiDPOWTDSkJ8OsdjVD-grmktM7MkG0snpvLBEE4GlxSV93jPUkVWZWIdFBf2WeSM9eTuEEfkQLr5toKR0-V-wVlX2dhWvNSivJfh08fz_GkDe9gLgf-JI-Tdeb0jDCwavRPA"
-                alt="Foto pasangan calon Dimas dan Siti"
-                class="h-full w-full object-cover object-top"
-              />
-              <div class="absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-slate-950/80 to-transparent p-4 text-white">
-                <span class="w-fit rounded bg-indigo-600/90 px-2 py-0.5 text-[10px] font-semibold">BEM FT-FISIP</span>
-                <h3 class="mt-1.5 text-lg font-bold">Dimas &amp; Siti</h3>
-              </div>
-            </div>
-
-            <div class="space-y-2">
-              <div class="rounded-xl border border-slate-100 bg-slate-50/80 p-3">
-                <p class="text-[10px] font-bold uppercase text-indigo-600">Calon Ketua BEM</p>
-                <p class="mt-1 text-sm font-bold text-slate-900">Dimas Arya Prasetya</p>
-                <p class="mt-1 text-xs text-slate-500">NIM 2104104018 • S1 Teknik Elektro (FT)</p>
-              </div>
-              <div class="rounded-xl border border-slate-100 bg-slate-50/80 p-3">
-                <p class="text-[10px] font-bold uppercase text-indigo-600">Calon Wakil Ketua BEM</p>
-                <p class="mt-1 text-sm font-bold text-slate-900">Siti Rahmawati</p>
-                <p class="mt-1 text-xs text-slate-500">NIM 2109101099 • S1 Ilmu Komunikasi (FISIP)</p>
-              </div>
-            </div>
-
-            <div class="rounded-xl border border-indigo-100/60 bg-indigo-50/60 p-3 text-center text-xs font-semibold italic text-indigo-700">
-              “Kampus Inklusif, Prestasi Berkelanjutan”
-            </div>
-
-            <div>
-              <p class="mb-2.5 font-mono text-[10px] font-bold uppercase tracking-wider text-slate-400">Pilar Program Kerja</p>
-              <ul class="space-y-2 text-xs leading-5">
-                <li class="flex gap-2"><span class="material-symbols-outlined text-base text-indigo-600">check_circle</span><span><strong>Inkubasi Karir Kreatif:</strong> Akselerasi sertifikasi industri</span></li>
-                <li class="flex gap-2"><span class="material-symbols-outlined text-base text-indigo-600">check_circle</span><span><strong>Fasilitas Disabilitas:</strong> Aksesibilitas gedung ramah difabel</span></li>
-                <li class="flex gap-2"><span class="material-symbols-outlined text-base text-indigo-600">check_circle</span><span><strong>Dana Ormawa Mandiri:</strong> Crowdfunding legal kampus</span></li>
-              </ul>
-            </div>
-
-            <div class="space-y-2.5 border-t border-slate-100 pt-4 text-xs">
-              <div class="flex justify-between gap-2">
-                <span class="text-slate-500">IPK &amp; SKCK</span>
-                <span class="font-semibold text-emerald-700">Lengkap &amp; Valid</span>
-              </div>
-              <div class="flex justify-between gap-2">
-                <span class="text-slate-500">Rekomendasi Fakultas</span>
-                <span class="font-semibold text-emerald-700">Disetujui Dekanat</span>
-              </div>
-              <div class="flex justify-between gap-2">
-                <span class="text-slate-500">Visi Misi</span>
-                <a href="#" class="font-semibold text-[#582be8] hover:underline">PDF (Unduh)</a>
-              </div>
-            </div>
-          </div>
-
-          <div class="flex gap-2 px-5 pb-5">
-            <button type="button" class="inline-flex items-center justify-center gap-1 flex-1 rounded-xl border border-slate-200 bg-white py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-sm transition">
-              <span class="material-symbols-outlined text-base">visibility</span>
-              Lihat Detail
-            </button>
-            <button type="button" class="inline-flex items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-sm transition">
-              <span class="material-symbols-outlined text-base">edit</span>
-              Edit
-            </button>
-          </div>
-        </article>
-
-        <!-- Paslon 03 -->
-        <article class="flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:border-purple-200 hover:shadow-md">
-          <div class="flex-1 space-y-5 p-5">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-3">
-                <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-700 text-xl font-extrabold text-white shadow-sm">03</div>
-                <div>
-                  <p class="font-mono text-[10px] font-semibold uppercase tracking-wider text-slate-400">Nomor Urut Resmi</p>
-                  <span class="mt-1 inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-semibold text-emerald-800">
-                    <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-                    Terverifikasi KPU
-                  </span>
-                </div>
-              </div>
-              <button type="button" class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition">
-                <span class="material-symbols-outlined text-[20px]">more_vert</span>
-              </button>
-            </div>
-
-            <div class="relative h-48 overflow-hidden rounded-xl bg-slate-100 border border-slate-100">
-              <img
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuCbw28c2ei6uJsELzn1ihDYFYlUoVI-imSyE6S_CCaJjz7Ihy-ylnRj8REA1TLVDfG-isUlz9M_2z1cZyUWABdA7-K6ckfkXIt7JJ-FMW0JooTfi4K_b8oXfiIXug9Fk9Uvu3otAGAC-EN0ysMdqhopur651zoEp2Swm4YXYF344f4GQsfpuF86xDA--Sf7btmi4RghcSa2PX0X0W2KQUWEvQfD5kxqoAlSBFfMA9PbXW_c1ERGHClqWQ"
-                alt="Foto pasangan calon Bagas dan Amanda"
-                class="h-full w-full object-cover object-top"
-              />
-              <div class="absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-slate-950/80 to-transparent p-4 text-white">
-                <span class="w-fit rounded bg-slate-800/90 px-2 py-0.5 text-[10px] font-semibold">BEM FH-FPSI</span>
-                <h3 class="mt-1.5 text-lg font-bold">Bagas &amp; Amanda</h3>
-              </div>
-            </div>
-
-            <div class="space-y-2">
-              <div class="rounded-xl border border-slate-100 bg-slate-50/80 p-3">
-                <p class="text-[10px] font-bold uppercase text-[#582be8]">Calon Ketua BEM</p>
-                <p class="mt-1 text-sm font-bold text-slate-900">Bagas Wicaksono</p>
-                <p class="mt-1 text-xs text-slate-500">NIM 2101103011 • S1 Ilmu Hukum (FH)</p>
-              </div>
-              <div class="rounded-xl border border-slate-100 bg-slate-50/80 p-3">
-                <p class="text-[10px] font-bold uppercase text-[#582be8]">Calon Wakil Ketua BEM</p>
-                <p class="mt-1 text-sm font-bold text-slate-900">Amanda Clarissa</p>
-                <p class="mt-1 text-xs text-slate-500">NIM 2107102033 • S1 Psikologi (FPsi)</p>
-              </div>
-            </div>
-
-            <div class="rounded-xl border border-slate-200/60 bg-slate-100 p-3 text-center text-xs font-semibold italic text-slate-800">
-              “Integritas Tegas, Suara Mahasiswa Berdaulat”
-            </div>
-
-            <div>
-              <p class="mb-2.5 font-mono text-[10px] font-bold uppercase tracking-wider text-slate-400">Pilar Program Kerja</p>
-              <ul class="space-y-2 text-xs leading-5">
-                <li class="flex gap-2"><span class="material-symbols-outlined text-base text-[#582be8]">check_circle</span><span><strong>Reformasi Regulasi:</strong> Penegakan hak konstitusi mahasiswa</span></li>
-                <li class="flex gap-2"><span class="material-symbols-outlined text-base text-[#582be8]">check_circle</span><span><strong>Kolaborasi Riset:</strong> Hub saintifik lintas fakultas</span></li>
-                <li class="flex gap-2"><span class="material-symbols-outlined text-base text-[#582be8]">check_circle</span><span><strong>Transparansi Anggaran:</strong> Laporan dana BEM publik</span></li>
-              </ul>
-            </div>
-
-            <div class="space-y-2.5 border-t border-slate-100 pt-4 text-xs">
-              <div class="flex justify-between gap-2">
-                <span class="text-slate-500">IPK &amp; SKCK</span>
-                <span class="font-semibold text-emerald-700">Lengkap &amp; Valid</span>
-              </div>
-              <div class="flex justify-between gap-2">
-                <span class="text-slate-500">Rekomendasi Fakultas</span>
-                <span class="font-semibold text-emerald-700">Disetujui Dekanat</span>
-              </div>
-              <div class="flex justify-between gap-2">
-                <span class="text-slate-500">Visi Misi</span>
-                <a href="#" class="font-semibold text-[#582be8] hover:underline">PDF (Unduh)</a>
-              </div>
-            </div>
-          </div>
-
-          <div class="flex gap-2 px-5 pb-5">
-            <button type="button" class="inline-flex items-center justify-center gap-1 flex-1 rounded-xl border border-slate-200 bg-white py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-sm transition">
-              <span class="material-symbols-outlined text-base">visibility</span>
-              Lihat Detail
-            </button>
-            <button type="button" class="inline-flex items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-sm transition">
+            <button
+              type="button"
+              @click="openEditCandidateModal(c)"
+              class="inline-flex items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-sm transition cursor-pointer"
+            >
               <span class="material-symbols-outlined text-base">edit</span>
               Edit
             </button>
@@ -384,27 +738,31 @@ definePageMeta({
       </div>
     </section>
 
-    <!-- DPM Candidates -->
-    <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+    <!-- SECTION 2: Kandidat Tunggal / Legislatif (DPM) Table -->
+    <section v-if="singleCandidates.length > 0" class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
       <div class="mb-5 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
           <div class="flex flex-wrap items-center gap-2">
-            <h2 class="text-base sm:text-lg font-bold text-slate-900">Daftar Calon Anggota DPM FT</h2>
-            <span class="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-semibold text-slate-600">5 Kandidat</span>
+            <h2 class="text-base sm:text-lg font-bold text-slate-900">
+              {{ selectedElectionId === 'all' ? 'Daftar Calon Anggota Legislatif / Independen' : 'Daftar Calon Anggota ' + getElectionName(selectedElectionId) }}
+            </h2>
+            <span class="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-semibold text-slate-600">
+              {{ singleCandidates.length }} Kandidat
+            </span>
           </div>
           <p class="mt-1 text-xs leading-5 text-slate-500">
-            Pemilihan legislatif perwakilan jurusan Fakultas Teknik: Informatika, Elektro, Sipil, dan Mesin.
+            Perwakilan departemen &amp; fakultas dengan nomor urut unik lokal per pemilihan.
           </p>
         </div>
 
         <div class="flex items-center gap-2">
-          <button type="button" class="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-sm transition">
-            <span class="material-symbols-outlined text-base">filter_list</span>
-            Filter Jurusan
-          </button>
-          <button type="button" class="inline-flex items-center gap-1 rounded-xl bg-[#582be8] px-3.5 py-2 text-xs font-semibold text-white hover:bg-[#471ec7] shadow-sm shadow-purple-600/20 transition">
+          <button
+            type="button"
+            @click="openCreateCandidateModal"
+            class="inline-flex items-center gap-1 rounded-xl bg-[#582be8] px-3.5 py-2 text-xs font-semibold text-white hover:bg-[#471ec7] shadow-sm shadow-purple-600/20 transition cursor-pointer"
+          >
             <span class="material-symbols-outlined text-base">person_add</span>
-            Calon DPM
+            + Tambah Calon
           </button>
         </div>
       </div>
@@ -424,143 +782,92 @@ definePageMeta({
           </thead>
 
           <tbody class="divide-y divide-slate-100 text-xs sm:text-sm">
-            <tr class="hover:bg-slate-50/70 transition">
-              <td class="px-4 py-4 font-mono font-bold text-[#582be8]">#01</td>
-              <td class="px-4 py-4">
-                <div class="flex items-center gap-3">
-                  <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuDgAcMU-_OxM5D1DEV3ig96Zw7hhYWdS7II7hvEPkDBlgjmNdPdHwPxtex9o0gOxta4CGj6CVIB73T6w4S6bHoK_rjVe7ed8uAABZhuFBKpLlZN8tsNbMOVj0dZJUcWGXKPLVzn2jxARMQM4ZqhxZXmKoTn32k6p2-ByX6m_K8dg8AyWI1hdVq0OTYAFtCda18vfXkr_Z5kgLNe1A7Nt_nDovaZwt1gmNmlmtnlt4BJBDpb0nh09To2zg" alt="Aldi Firmansyah" class="h-10 w-10 rounded-xl object-cover" />
-                  <div>
-                    <p class="font-semibold text-slate-900">Aldi Firmansyah</p>
-                    <p class="mt-0.5 text-[10px] text-slate-500">Departemen TI</p>
-                  </div>
-                </div>
+            <tr v-for="c in singleCandidates" :key="c.id" class="hover:bg-slate-50/70 transition">
+              <td class="px-4 py-4 font-mono font-bold text-[#582be8]">
+                #{{ c.ballotNumber }}
               </td>
-              <td class="px-4 py-4">
-                <p class="font-mono text-slate-900">2208101004</p>
-                <p class="mt-0.5 text-xs text-slate-500">S1 Teknik Informatika</p>
-              </td>
-              <td class="px-4 py-4">
-                <p>Sem. 6</p>
-                <p class="mt-0.5 font-semibold text-emerald-700">IPK 3.78</p>
-              </td>
-              <td class="px-4 py-4 font-semibold text-emerald-700">✓ 100% Lengkap</td>
-              <td class="px-4 py-4">
-                <span class="whitespace-nowrap rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-semibold text-emerald-800">Siap di Bilik</span>
-              </td>
-              <td class="px-4 py-4 text-right">
-                <button type="button" class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-sm transition">Detail</button>
-              </td>
-            </tr>
 
-            <tr class="hover:bg-slate-50/70 transition">
-              <td class="px-4 py-4 font-mono font-bold text-[#582be8]">#02</td>
               <td class="px-4 py-4">
                 <div class="flex items-center gap-3">
-                  <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuAhNw-Xr5Cte8One2BrRBpRq8xJyhZcShgO8JsEyASTAiYXAxlkE_FEa8-Soyf-GQFQe0Epv1yaVm-fuMw2f3G9y62BKQYSw3bYymqJAL1jwl4l8aHwAat4fjTGP_1m9gJPwPgjbYjiKk1-guphN_RqfWG-7QqfUkEMEriF7rYjewxwcVdnrB9agTO4s1m2CJmPqnP20qhPG-AkcB7RNqbaNU2lTpUamsgDLKtTgIbglRhsRrMJXyANBg" alt="Ratna Dewi" class="h-10 w-10 rounded-xl object-cover" />
+                  <img
+                    :src="c.photo"
+                    :alt="c.name"
+                    class="h-10 w-10 rounded-xl object-cover shrink-0 border border-slate-200"
+                    loading="lazy"
+                  />
                   <div>
-                    <p class="font-semibold text-slate-900">Ratna Dewi</p>
-                    <p class="mt-0.5 text-[10px] text-slate-500">Departemen Elektro</p>
+                    <p class="font-semibold text-slate-900">{{ c.name }}</p>
+                    <p class="mt-0.5 text-[10px] text-slate-500 font-mono">{{ c.coalition }} · {{ c.electionId }}</p>
                   </div>
                 </div>
               </td>
-              <td class="px-4 py-4">
-                <p class="font-mono text-slate-900">2204102019</p>
-                <p class="mt-0.5 text-xs text-slate-500">S1 Teknik Elektro</p>
-              </td>
-              <td class="px-4 py-4">
-                <p>Sem. 6</p>
-                <p class="mt-0.5 font-semibold text-emerald-700">IPK 3.65</p>
-              </td>
-              <td class="px-4 py-4 font-semibold text-emerald-700">✓ 100% Lengkap</td>
-              <td class="px-4 py-4">
-                <span class="whitespace-nowrap rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-semibold text-emerald-800">Siap di Bilik</span>
-              </td>
-              <td class="px-4 py-4 text-right">
-                <button type="button" class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-sm transition">Detail</button>
-              </td>
-            </tr>
 
-            <tr class="hover:bg-slate-50/70 transition">
-              <td class="px-4 py-4 font-mono font-bold text-[#582be8]">#03</td>
               <td class="px-4 py-4">
-                <div class="flex items-center gap-3">
-                  <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuC8ZolsDt3nkBLwOHctmLoRNvWc088cxfD6y44-TPisMrMWndDerR7aA8l9zAC8u62eeNlwax20qIkAWN6UBHaGcXKv2UR7cVTqQ5LLtaMyPz3iwURAC1-3WamDzHu1eewR28qrWv3SvkpKa62aHVz4ydh9LMGuiFHnzoKom9uwyskdncQBV00diAh5uxcsxgqqOtKxFISCfbnV30XTOOS8PjmWkcR65cp3mzwhWtPncP0BiF-bytBHgQ" alt="Kevin Pratama" class="h-10 w-10 rounded-xl object-cover" />
-                  <div>
-                    <p class="font-semibold text-slate-900">Kevin Pratama</p>
-                    <p class="mt-0.5 text-[10px] text-slate-500">Departemen Sipil</p>
-                  </div>
-                </div>
+                <p class="font-mono text-slate-900">{{ c.leadCandidate.nim }}</p>
+                <p class="mt-0.5 text-xs text-slate-500">{{ c.leadCandidate.major }}</p>
               </td>
-              <td class="px-4 py-4">
-                <p class="font-mono text-slate-900">2103103055</p>
-                <p class="mt-0.5 text-xs text-slate-500">S1 Teknik Sipil</p>
-              </td>
-              <td class="px-4 py-4">
-                <p>Sem. 8</p>
-                <p class="mt-0.5 font-semibold text-emerald-700">IPK 3.52</p>
-              </td>
-              <td class="px-4 py-4 font-semibold text-emerald-700">✓ 100% Lengkap</td>
-              <td class="px-4 py-4">
-                <span class="whitespace-nowrap rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-semibold text-emerald-800">Siap di Bilik</span>
-              </td>
-              <td class="px-4 py-4 text-right">
-                <button type="button" class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-sm transition">Detail</button>
-              </td>
-            </tr>
 
-            <tr class="hover:bg-slate-50/70 transition">
-              <td class="px-4 py-4 font-mono font-bold text-slate-400">#04</td>
               <td class="px-4 py-4">
-                <div class="flex items-center gap-3">
-                  <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuD63BmQhg12pZpZKonjYHL_esj95QaS6lHrV6jNvI9JxUGtfPolNd1kHg0HZ8zqkH8pWR6o-eAQwth1gTdIOfUcPUIQzQZ0gV0sqDmH7kl39K1xoKbPeXXuw8AJP33wH102_1nrdYWTobAnlhKIJOAQFFpuEWkRl8-Q4eYzvAUK7Bl6zZgzvkasScV9RtZBZXs_mujOaz_BFm-Z5btVxQ4IK9wjyfm91B78rtftaMfv5VfbEOZ21LowDw" alt="Maya Anindita" class="h-10 w-10 rounded-xl object-cover" />
-                  <div>
-                    <p class="font-semibold text-slate-900">Maya Anindita</p>
-                    <p class="mt-0.5 text-[10px] text-slate-500">Departemen Mesin</p>
-                  </div>
-                </div>
+                <p>Sem. {{ c.leadCandidate.semester || 6 }}</p>
+                <p class="mt-0.5 font-semibold text-emerald-700">IPK {{ (c.leadCandidate.gpa || 3.5).toFixed(2) }}</p>
               </td>
-              <td class="px-4 py-4">
-                <p class="font-mono text-slate-900">2205101088</p>
-                <p class="mt-0.5 text-xs text-slate-500">S1 Teknik Mesin</p>
-              </td>
-              <td class="px-4 py-4">
-                <p>Sem. 6</p>
-                <p class="mt-0.5 font-semibold text-emerald-700">IPK 3.80</p>
-              </td>
-              <td class="px-4 py-4 font-semibold text-amber-700">Menunggu SKCK</td>
-              <td class="px-4 py-4">
-                <span class="whitespace-nowrap rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-semibold text-amber-800">Verifikasi Berkas</span>
-              </td>
-              <td class="px-4 py-4 text-right">
-                <button type="button" class="rounded-lg bg-[#582be8] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#471ec7] shadow-sm shadow-purple-600/20 transition">Verifikasi</button>
-              </td>
-            </tr>
 
-            <tr class="hover:bg-slate-50/70 transition">
-              <td class="px-4 py-4 font-mono font-bold text-slate-400">#05</td>
               <td class="px-4 py-4">
-                <div class="flex items-center gap-3">
-                  <img src="https://lh3.googleusercontent.com/aida-public/AB6AXuAC6whJ-zQgpnIq9ZBiWhLAgJ7_WusIKoHIHNvLdSxQlZ6BA7G3qpLL0M1QAgUwTvHrJEvQgTm3WYRwSw1WyrmnkbzYAnvGZNOct2GkeEpmXp9J5m5RzibPHX8R2YSL_dmewMWhMdsjnmr0J_wkkVVQCSIwdYdHXOLNoQtw55GHf3wegTHXLBCeLjs3CX7BeXvgE6AUHIKIn-ARD-SDKrzGGPppgicNEwvMJfCNeq09whEpzisIVNYHPA" alt="Fikri Haikal" class="h-10 w-10 rounded-xl object-cover" />
-                  <div>
-                    <p class="font-semibold text-slate-900">Fikri Haikal</p>
-                    <p class="mt-0.5 text-[10px] text-slate-500">Departemen Arsitektur</p>
-                  </div>
-                </div>
+                <span
+                  :class="[
+                    'font-semibold',
+                    c.status === 'Terverifikasi KPU' ? 'text-emerald-700' : 'text-amber-700'
+                  ]"
+                >
+                  {{ c.status === 'Terverifikasi KPU' ? '✓ 100% Lengkap' : c.status }}
+                </span>
               </td>
+
               <td class="px-4 py-4">
-                <p class="font-mono text-slate-900">2106102041</p>
-                <p class="mt-0.5 text-xs text-slate-500">S1 Arsitektur</p>
+                <span
+                  :class="[
+                    'whitespace-nowrap rounded-full px-2.5 py-0.5 text-[10px] font-semibold',
+                    c.isInBallot ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                  ]"
+                >
+                  {{ c.isInBallot ? 'Siap di Bilik' : 'Verifikasi Berkas' }}
+                </span>
               </td>
-              <td class="px-4 py-4">
-                <p>Sem. 8</p>
-                <p class="mt-0.5 font-semibold text-emerald-700">IPK 3.42</p>
-              </td>
-              <td class="px-4 py-4 font-semibold text-amber-700">Kurang 12 KTM</td>
-              <td class="px-4 py-4">
-                <span class="whitespace-nowrap rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-semibold text-amber-800">Revisi Dukungan</span>
-              </td>
+
               <td class="px-4 py-4 text-right">
-                <button type="button" class="rounded-lg bg-[#582be8] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#471ec7] shadow-sm shadow-purple-600/20 transition">Verifikasi</button>
+                <div class="inline-flex items-center gap-1.5 justify-end">
+                  <button
+                    v-if="!c.isInBallot"
+                    type="button"
+                    @click="quickVerify(c)"
+                    class="rounded-lg bg-[#582be8] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#471ec7] shadow-sm shadow-purple-600/20 transition cursor-pointer"
+                  >
+                    Verifikasi
+                  </button>
+                  <button
+                    type="button"
+                    @click="openDetailCandidate(c)"
+                    class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-sm transition cursor-pointer"
+                  >
+                    Detail
+                  </button>
+                  <button
+                    type="button"
+                    @click="openEditCandidateModal(c)"
+                    class="rounded-lg border border-slate-200 bg-white p-1.5 text-xs text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition cursor-pointer"
+                    title="Edit"
+                  >
+                    <span class="material-symbols-outlined text-[16px]">edit</span>
+                  </button>
+                  <button
+                    type="button"
+                    @click="promptDeleteCandidate(c)"
+                    class="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 transition cursor-pointer"
+                    title="Hapus"
+                  >
+                    <span class="material-symbols-outlined text-[16px]">delete</span>
+                  </button>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -568,7 +875,34 @@ definePageMeta({
       </div>
     </section>
 
-    <!-- SOP -->
+    <!-- Empty State: Ketika filter tidak mengembalikan kandidat -->
+    <section v-if="filteredCandidates.length === 0" class="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center space-y-3">
+      <div class="w-16 h-16 rounded-2xl bg-purple-50 text-[#582be8] flex items-center justify-center mx-auto">
+        <span class="material-symbols-outlined text-[36px]">group_off</span>
+      </div>
+      <h3 class="text-base font-bold text-slate-800">Tidak Ada Kandidat yang Cocok</h3>
+      <p class="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+        Tidak ditemukan pasangan calon atau kandidat yang sesuai dengan filter pemilihan <strong>{{ getElectionName(selectedElectionId) }}</strong> atau kata kunci pencarian "{{ searchQuery }}".
+      </p>
+      <div class="flex items-center justify-center gap-3 pt-2">
+        <button
+          type="button"
+          @click="selectedElectionId = 'all'; statusFilter = 'Semua'; searchQuery = ''"
+          class="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition cursor-pointer"
+        >
+          Reset Semua Filter
+        </button>
+        <button
+          type="button"
+          @click="openCreateCandidateModal"
+          class="px-4 py-2 text-xs font-semibold text-white bg-[#582be8] hover:bg-[#471ec7] rounded-xl shadow-md transition cursor-pointer"
+        >
+          + Daftarkan Calon Baru
+        </button>
+      </div>
+    </section>
+
+    <!-- SOP Section -->
     <section class="flex flex-col gap-5 rounded-2xl border border-purple-100/70 bg-purple-50/50 p-6 md:flex-row shadow-sm">
       <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-purple-100 text-[#582be8]">
         <span class="material-symbols-outlined text-[28px]">gavel</span>
@@ -605,9 +939,599 @@ definePageMeta({
       <p>A-Vote Campus System · Admin Panel</p>
       <p>Pemilu Mahasiswa 2025</p>
     </footer>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         MODAL: FORM TAMBAH / EDIT KANDIDAT
+    ═══════════════════════════════════════════════════════════════════ -->
+    <Teleport to="body">
+      <Transition name="modal-fade">
+        <div v-if="showCandidateModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div class="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" @click="showCandidateModal = false"></div>
+
+          <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/50">
+              <div class="flex items-center gap-2.5">
+                <div class="w-9 h-9 rounded-xl bg-purple-50 text-[#582be8] flex items-center justify-center">
+                  <span class="material-symbols-outlined text-[20px]">{{ candidateModalMode === 'create' ? 'person_add' : 'edit' }}</span>
+                </div>
+                <div>
+                  <h3 class="text-sm font-bold text-slate-900">
+                    {{ candidateModalMode === 'create' ? 'Tambah Paslon / Kandidat Baru' : 'Edit Data Paslon / Kandidat' }}
+                  </h3>
+                  <p class="text-[11px] text-slate-500">Agenda: {{ getElectionName(candidateForm.electionId) }}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                @click="showCandidateModal = false"
+                class="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition"
+              >
+                <span class="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            <form @submit.prevent="saveCandidateForm" class="p-6 overflow-y-auto space-y-5 text-xs flex-1">
+              <div v-if="candidateFormError" class="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 flex items-start gap-2">
+                <span class="material-symbols-outlined text-[18px] shrink-0 text-red-600 mt-0.5">error</span>
+                <span class="font-medium leading-relaxed">{{ candidateFormError }}</span>
+              </div>
+
+              <!-- Pilihan Agenda Pemilihan -->
+              <div>
+                <label class="block font-semibold text-slate-700 mb-1">Agenda Pemilihan Terkait <span class="text-red-500">*</span></label>
+                <select
+                  v-model="candidateForm.electionId"
+                  :disabled="candidateModalMode === 'edit'"
+                  class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-medium outline-none focus:border-[#582be8]"
+                >
+                  <option v-for="e in electionsList.filter(x => x.id !== 'all')" :key="e.id" :value="e.id">
+                    {{ e.name }} ({{ e.id }})
+                  </option>
+                </select>
+              </div>
+
+              <!-- Tipe Pencalonan: Pasangan vs Tunggal -->
+              <div>
+                <label class="block font-semibold text-slate-700 mb-1.5">Tipe Pencalonan</label>
+                <div class="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    @click="candidateForm.type = 'pair'"
+                    :class="[
+                      'p-3 rounded-xl border flex items-center gap-3 transition text-left cursor-pointer',
+                      candidateForm.type === 'pair' ? 'border-[#582be8] bg-purple-50 text-[#582be8]' : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                    ]"
+                  >
+                    <span class="material-symbols-outlined text-[22px]">groups</span>
+                    <div>
+                      <p class="font-bold">Pasangan Calon</p>
+                      <p class="text-[10px] text-slate-500">Ketua &amp; Wakil Ketua (Eksekutif)</p>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    @click="candidateForm.type = 'single'"
+                    :class="[
+                      'p-3 rounded-xl border flex items-center gap-3 transition text-left cursor-pointer',
+                      candidateForm.type === 'single' ? 'border-[#582be8] bg-purple-50 text-[#582be8]' : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                    ]"
+                  >
+                    <span class="material-symbols-outlined text-[22px]">person</span>
+                    <div>
+                      <p class="font-bold">Kandidat Tunggal</p>
+                      <p class="text-[10px] text-slate-500">Anggota Legislatif / Independen</p>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Nomor Urut & Nama Paslon -->
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label class="block font-semibold text-slate-700 mb-1">
+                    Nomor Urut Resmi <span class="text-red-500">*</span>
+                  </label>
+                  <input
+                    v-model="candidateForm.ballotNumber"
+                    type="text"
+                    placeholder="01"
+                    maxlength="3"
+                    class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-[#582be8] font-mono font-bold text-center outline-none"
+                    required
+                  />
+                  <p class="text-[10px] text-slate-400 mt-1">Unik di pemilihan ini</p>
+                </div>
+
+                <div class="sm:col-span-2">
+                  <label class="block font-semibold text-slate-700 mb-1">
+                    Nama Tampilan Calon <span class="text-red-500">*</span>
+                  </label>
+                  <input
+                    v-model="candidateForm.name"
+                    type="text"
+                    placeholder="Farhan & Nabila atau Aldi Firmansyah"
+                    class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-[#582be8] outline-none"
+                    required
+                  />
+                </div>
+              </div>
+
+              <!-- Tagline & Koalisi -->
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label class="block font-semibold text-slate-700 mb-1">Slogan / Tagline</label>
+                  <input
+                    v-model="candidateForm.tagline"
+                    type="text"
+                    placeholder="“Sinergi Nyata, Berdampak Bersama”"
+                    class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-[#582be8] outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label class="block font-semibold text-slate-700 mb-1">Partai / Koalisi / Departemen</label>
+                  <input
+                    v-model="candidateForm.coalition"
+                    type="text"
+                    placeholder="Departemen TI / Koalisi Mahasiswa"
+                    class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-[#582be8] outline-none"
+                  />
+                </div>
+              </div>
+
+              <!-- Status Verifikasi KPU -->
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label class="block font-semibold text-slate-700 mb-1">Status Verifikasi KPU</label>
+                  <select
+                    v-model="candidateForm.status"
+                    class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-[#582be8] outline-none bg-white font-medium"
+                  >
+                    <option value="Terverifikasi KPU">Terverifikasi KPU (Sah Masuk Bilik)</option>
+                    <option value="Menunggu Berkas">Menunggu Berkas (Pemeriksaan SKCK/LPJ)</option>
+                    <option value="Revisi Dukungan">Revisi Dukungan (Kurang KTM)</option>
+                    <option value="Ditolak">Ditolak (Tidak Memenuhi Syarat)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label class="block font-semibold text-slate-700 mb-1">Warna Representasi Calon</label>
+                  <div class="flex items-center gap-2">
+                    <input
+                      v-model="candidateForm.color"
+                      type="color"
+                      class="h-9 w-12 rounded-lg border border-slate-200 cursor-pointer p-0.5"
+                    />
+                    <input
+                      v-model="candidateForm.color"
+                      type="text"
+                      class="flex-1 px-3 py-2 rounded-xl border border-slate-200 font-mono text-xs outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Data Calon Utama -->
+              <div class="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-3">
+                <h4 class="font-bold text-slate-900 flex items-center gap-1.5 text-xs text-[#582be8]">
+                  <span class="material-symbols-outlined text-[16px]">badge</span>
+                  {{ candidateForm.type === 'pair' ? 'Data Calon Ketua' : 'Data Calon Utama' }}
+                </h4>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label class="block font-medium text-slate-600 mb-1">Nama Lengkap <span class="text-red-500">*</span></label>
+                    <input
+                      v-model="candidateForm.leadName"
+                      type="text"
+                      placeholder="Nama lengkap mahasiswa"
+                      class="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white focus:border-[#582be8] outline-none"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label class="block font-medium text-slate-600 mb-1">NIM Mahasiswa <span class="text-red-500">*</span></label>
+                    <input
+                      v-model="candidateForm.leadNim"
+                      type="text"
+                      placeholder="Contoh: 2108101012"
+                      class="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white font-mono focus:border-[#582be8] outline-none"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label class="block font-medium text-slate-600 mb-1">Fakultas</label>
+                    <input
+                      v-model="candidateForm.leadFaculty"
+                      type="text"
+                      placeholder="Fakultas Teknik"
+                      class="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label class="block font-medium text-slate-600 mb-1">Program Studi</label>
+                    <input
+                      v-model="candidateForm.leadMajor"
+                      type="text"
+                      placeholder="S1 Teknik Informatika"
+                      class="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label class="block font-medium text-slate-600 mb-1">IPK Kumulatif</label>
+                    <input
+                      v-model="candidateForm.leadGpa"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="4.00"
+                      class="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white font-mono outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Data Calon Wakil (Pair only) -->
+              <div v-if="candidateForm.type === 'pair'" class="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-3">
+                <h4 class="font-bold text-slate-900 flex items-center gap-1.5 text-xs text-[#582be8]">
+                  <span class="material-symbols-outlined text-[16px]">how_to_reg</span>
+                  Data Calon Wakil Ketua
+                </h4>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label class="block font-medium text-slate-600 mb-1">Nama Lengkap Wakil <span class="text-red-500">*</span></label>
+                    <input
+                      v-model="candidateForm.viceName"
+                      type="text"
+                      placeholder="Nama lengkap wakil"
+                      class="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white focus:border-[#582be8] outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label class="block font-medium text-slate-600 mb-1">NIM Mahasiswa <span class="text-red-500">*</span></label>
+                    <input
+                      v-model="candidateForm.viceNim"
+                      type="text"
+                      placeholder="Contoh: 2102102045"
+                      class="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white font-mono focus:border-[#582be8] outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label class="block font-medium text-slate-600 mb-1">Fakultas</label>
+                    <input
+                      v-model="candidateForm.viceFaculty"
+                      type="text"
+                      placeholder="Fakultas Ekonomika & Bisnis"
+                      class="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label class="block font-medium text-slate-600 mb-1">Program Studi</label>
+                    <input
+                      v-model="candidateForm.viceMajor"
+                      type="text"
+                      placeholder="S1 Akuntansi"
+                      class="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label class="block font-medium text-slate-600 mb-1">IPK Kumulatif</label>
+                    <input
+                      v-model="candidateForm.viceGpa"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="4.00"
+                      class="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white font-mono outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Visi, Misi, Pilar -->
+              <div>
+                <label class="block font-semibold text-slate-700 mb-1">Visi Calon</label>
+                <textarea
+                  v-model="candidateForm.visi"
+                  rows="2"
+                  placeholder="Visi utama paslon..."
+                  class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-[#582be8] outline-none"
+                ></textarea>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label class="block font-semibold text-slate-700 mb-1">Misi Calon (1 per baris)</label>
+                  <textarea
+                    v-model="candidateForm.misiText"
+                    rows="3"
+                    placeholder="Misi 1&#10;Misi 2&#10;Misi 3"
+                    class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-[#582be8] outline-none"
+                  ></textarea>
+                </div>
+
+                <div>
+                  <label class="block font-semibold text-slate-700 mb-1">Pilar Program Kerja (1 per baris)</label>
+                  <textarea
+                    v-model="candidateForm.pillarsText"
+                    rows="3"
+                    placeholder="Digitalisasi Ormawa Kampus&#10;Layanan Advokasi 24/7&#10;Pemerataan Dana Riset"
+                    class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-[#582be8] outline-none"
+                  ></textarea>
+                </div>
+              </div>
+            </form>
+
+            <div class="px-6 py-4 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                @click="showCandidateModal = false"
+                class="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 transition cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                @click="saveCandidateForm"
+                class="px-5 py-2 text-xs font-semibold text-white bg-[#582be8] hover:bg-[#471ec7] rounded-xl shadow-md shadow-purple-600/25 transition cursor-pointer"
+              >
+                {{ candidateModalMode === 'create' ? 'Simpan Data Kandidat' : 'Perbarui Kandidat' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         MODAL: DETAIL PROFIL & BERKAS
+    ═══════════════════════════════════════════════════════════════════ -->
+    <Teleport to="body">
+      <Transition name="modal-fade">
+        <div v-if="showDetailCandidateModal && selectedDetailCandidate" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div class="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" @click="showDetailCandidateModal = false"></div>
+
+          <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
+            <div
+              class="p-6 text-white relative overflow-hidden"
+              :style="{ backgroundColor: selectedDetailCandidate.color || '#582be8' }"
+            >
+              <div class="flex items-start justify-between relative z-10">
+                <div class="flex items-center gap-3">
+                  <span class="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-md text-white text-2xl font-black flex items-center justify-center border border-white/30">
+                    {{ selectedDetailCandidate.ballotNumber }}
+                  </span>
+                  <div>
+                    <span class="text-[10px] font-mono uppercase tracking-wider text-white/80 font-bold">
+                      {{ selectedDetailCandidate.type === 'pair' ? 'Pasangan Calon' : 'Kandidat Independen' }} · {{ selectedDetailCandidate.electionId }}
+                    </span>
+                    <h3 class="text-xl font-extrabold text-white">{{ selectedDetailCandidate.name }}</h3>
+                    <p class="text-xs text-white/90 italic mt-0.5">{{ selectedDetailCandidate.tagline }}</p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  @click="showDetailCandidateModal = false"
+                  class="w-8 h-8 rounded-lg bg-black/20 text-white hover:bg-black/40 flex items-center justify-center transition"
+                >
+                  <span class="material-symbols-outlined text-[20px]">close</span>
+                </button>
+              </div>
+
+              <div class="mt-4 flex flex-wrap items-center gap-2 relative z-10">
+                <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-white text-slate-900 shadow-sm">
+                  {{ selectedDetailCandidate.status }}
+                </span>
+                <span
+                  :class="[
+                    'px-2.5 py-0.5 rounded-full text-[11px] font-bold shadow-sm flex items-center gap-1',
+                    selectedDetailCandidate.isInBallot ? 'bg-emerald-400 text-emerald-950' : 'bg-amber-300 text-amber-950'
+                  ]"
+                >
+                  <span class="material-symbols-outlined text-[13px]">{{ selectedDetailCandidate.isInBallot ? 'how_to_vote' : 'hourglass_empty' }}</span>
+                  {{ selectedDetailCandidate.isInBallot ? 'Sah di Bilik Suara' : 'Menunggu Penetapan' }}
+                </span>
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-mono bg-white/20 text-white">
+                  {{ selectedDetailCandidate.coalition }}
+                </span>
+              </div>
+            </div>
+
+            <div class="p-6 overflow-y-auto space-y-5 text-xs flex-1">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-1.5">
+                  <span class="font-mono text-[10px] text-[#582be8] font-bold uppercase">
+                    {{ selectedDetailCandidate.type === 'pair' ? 'Calon Ketua' : 'Kandidat Utama' }}
+                  </span>
+                  <p class="text-sm font-bold text-slate-900">{{ selectedDetailCandidate.leadCandidate.name }}</p>
+                  <p class="text-slate-600 font-mono">NIM: {{ selectedDetailCandidate.leadCandidate.nim }}</p>
+                  <p class="text-slate-500">{{ selectedDetailCandidate.leadCandidate.major }} · {{ selectedDetailCandidate.leadCandidate.faculty }}</p>
+                </div>
+
+                <div v-if="selectedDetailCandidate.type === 'pair' && selectedDetailCandidate.viceCandidate" class="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-1.5">
+                  <span class="font-mono text-[10px] text-[#582be8] font-bold uppercase">Calon Wakil Ketua</span>
+                  <p class="text-sm font-bold text-slate-900">{{ selectedDetailCandidate.viceCandidate.name }}</p>
+                  <p class="text-slate-600 font-mono">NIM: {{ selectedDetailCandidate.viceCandidate.nim }}</p>
+                  <p class="text-slate-500">{{ selectedDetailCandidate.viceCandidate.major }} · {{ selectedDetailCandidate.viceCandidate.faculty }}</p>
+                </div>
+              </div>
+
+              <div>
+                <h4 class="font-bold text-slate-900 mb-1 text-xs">Visi:</h4>
+                <p class="text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100">
+                  {{ selectedDetailCandidate.visi || 'Belum ada visi tercatat.' }}
+                </p>
+              </div>
+
+              <div v-if="selectedDetailCandidate.misi && selectedDetailCandidate.misi.length > 0">
+                <h4 class="font-bold text-slate-900 mb-1 text-xs">Misi Calon:</h4>
+                <ul class="space-y-1.5 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                  <li v-for="(m, idx) in selectedDetailCandidate.misi" :key="idx" class="flex items-start gap-2 text-slate-600">
+                    <span class="font-mono font-bold text-[#582be8] text-[11px]">{{ idx + 1 }}.</span>
+                    <span>{{ m }}</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div v-if="selectedDetailCandidate.pillars && selectedDetailCandidate.pillars.length > 0">
+                <h4 class="font-bold text-slate-900 mb-1.5 text-xs">Pilar Program Kerja:</h4>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div
+                    v-for="(p, idx) in selectedDetailCandidate.pillars"
+                    :key="idx"
+                    class="p-2.5 rounded-lg border border-slate-200 bg-white flex items-center gap-2"
+                  >
+                    <span class="material-symbols-outlined text-emerald-600 text-[18px]">verified</span>
+                    <span class="font-medium text-slate-800">{{ p }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
+                <span>Perolehan Suara: <strong class="text-slate-700 font-mono">{{ selectedDetailCandidate.votesCount.toLocaleString() }} Suara</strong></span>
+                <span>ID: {{ selectedDetailCandidate.id }}</span>
+              </div>
+            </div>
+
+            <div class="px-6 py-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
+              <button
+                type="button"
+                @click="showDetailCandidateModal = false"
+                class="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 transition cursor-pointer"
+              >
+                Tutup
+              </button>
+
+              <button
+                type="button"
+                @click="showDetailCandidateModal = false; openEditCandidateModal(selectedDetailCandidate)"
+                class="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-[#582be8] hover:bg-[#471ec7] rounded-xl shadow-md transition cursor-pointer"
+              >
+                <span class="material-symbols-outlined text-[16px]">edit</span>
+                <span>Edit Calon Ini</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         MODAL: KONFIRMASI HAPUS
+    ═══════════════════════════════════════════════════════════════════ -->
+    <Teleport to="body">
+      <Transition name="modal-fade">
+        <div v-if="showDeleteCandidateModal && candidateToDelete" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div class="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" @click="showDeleteCandidateModal = false"></div>
+
+          <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md border border-slate-200 overflow-hidden">
+            <div class="p-6 text-center">
+              <div
+                :class="[
+                  'w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4',
+                  deleteValidation.allowed ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'
+                ]"
+              >
+                <span class="material-symbols-outlined text-[30px]">{{ deleteValidation.allowed ? 'delete_forever' : 'block' }}</span>
+              </div>
+
+              <h3 class="text-base font-bold text-slate-900">
+                {{ deleteValidation.allowed ? 'Hapus Data Kandidat?' : 'Penghapusan Ditolak Sistem' }}
+              </h3>
+
+              <div v-if="!deleteValidation.allowed" class="mt-3 space-y-3 text-left">
+                <div class="p-4 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs leading-relaxed flex items-start gap-2.5">
+                  <span class="material-symbols-outlined text-red-600 text-[20px] shrink-0 mt-0.5">gavel</span>
+                  <div>
+                    <strong class="block mb-1 font-bold">Aturan Bisnis KPU:</strong>
+                    {{ deleteValidation.reason }}
+                  </div>
+                </div>
+              </div>
+
+              <div v-else class="mt-2 text-xs text-slate-500 leading-relaxed">
+                <p>
+                  Apakah Anda yakin ingin menghapus calon <strong class="text-slate-900">{{ candidateToDelete.name }}</strong> (Nomor Urut <strong class="text-slate-900 font-mono">#{{ candidateToDelete.ballotNumber }}</strong>) dari agenda <strong>#{{ candidateToDelete.electionId }}</strong>?
+                </p>
+                <p class="mt-2 text-[11px] text-red-600 font-medium">
+                  Tindakan ini permanen dan nomor urut akan tersedia kembali untuk calon lain.
+                </p>
+              </div>
+            </div>
+
+            <div class="px-6 pb-6 flex items-center gap-3">
+              <button
+                type="button"
+                @click="showDeleteCandidateModal = false"
+                class="flex-1 px-4 py-2.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition cursor-pointer"
+              >
+                {{ deleteValidation.allowed ? 'Batal' : 'Tutup' }}
+              </button>
+
+              <button
+                v-if="deleteValidation.allowed"
+                type="button"
+                @click="confirmDeleteCandidate"
+                class="flex-1 px-4 py-2.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-md shadow-red-600/25 transition cursor-pointer"
+              >
+                Ya, Hapus Kandidat
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         TOAST NOTIFICATION POPUP
+    ═══════════════════════════════════════════════════════════════════ -->
+    <Teleport to="body">
+      <Transition name="modal-fade">
+        <div
+          v-if="showToast"
+          class="fixed bottom-6 right-6 z-50 max-w-sm bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-slate-700 text-xs"
+        >
+          <span class="material-symbols-outlined text-emerald-400 text-[20px] shrink-0">check_circle</span>
+          <span class="flex-1 leading-snug">{{ toastMessage }}</span>
+          <button @click="showToast = false" class="text-slate-400 hover:text-white shrink-0">
+            <span class="material-symbols-outlined text-[16px]">close</span>
+          </button>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
+
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.modal-fade-enter-active .relative,
+.modal-fade-leave-active .relative {
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
+}
+
+.modal-fade-enter-from .relative,
+.modal-fade-leave-to .relative {
+  transform: scale(0.96) translateY(8px);
+  opacity: 0;
+}
 </style>
