@@ -12,7 +12,15 @@ definePageMeta({
 
 // ─── Shared Candidates Composable ────────────────────────────────────
 const {
+  masterCandidatesDatabase,
+  electionCandidateParticipationsDatabase,
   candidatesDatabase,
+  getAllMasterCandidates,
+  getMasterCandidateById,
+  addMasterCandidate,
+  updateMasterCandidate,
+  deleteMasterCandidate,
+  getMasterCandidateParticipations,
   getCandidatesByElection,
   getCandidateStats,
   addCandidate,
@@ -20,6 +28,10 @@ const {
   deleteCandidate,
   canDeleteCandidate
 } = useElectionCandidates()
+
+function getCandidateParticipationsList(candidateId: string) {
+  return getMasterCandidateParticipations(candidateId)
+}
 
 // ─── Master Daftar Pemilihan (Mapping Referensi) ─────────────────────
 const electionsList = [
@@ -76,7 +88,35 @@ const stats = computed(() => getCandidateStats(selectedElectionId.value))
 // ─── Candidates by Selected Election ─────────────────────────────────
 const electionCandidates = computed(() => {
   if (selectedElectionId.value === 'all') {
-    return candidatesDatabase.value
+    // Tampilkan seluruh master kandidat yang ada (terhidrasi atau standalone)
+    return masterCandidatesDatabase.value.map(m => {
+      const parts = getMasterCandidateParticipations(m.id)
+      if (parts.length > 0) {
+        const part = parts[0]
+        return {
+          ...m,
+          id: part.id,
+          participationId: part.id,
+          candidateId: m.id,
+          electionId: part.electionId,
+          ballotNumber: part.ballotNumber,
+          status: part.status,
+          isInBallot: part.isInBallot,
+          votesCount: parts.reduce((acc, p) => acc + p.votesCount, 0)
+        }
+      }
+      return {
+        ...m,
+        id: m.id,
+        participationId: '',
+        candidateId: m.id,
+        electionId: 'none',
+        ballotNumber: '-',
+        status: 'Terverifikasi KPU' as CandidateVerificationStatus,
+        isInBallot: false,
+        votesCount: 0
+      }
+    })
   }
   return getCandidatesByElection(selectedElectionId.value)
 })
@@ -204,11 +244,14 @@ function openCreateCandidateModal() {
   editingCandidateId.value = null
   candidateFormError.value = ''
 
-  const targetElection = selectedElectionId.value === 'all' ? 'PEM-2025-01' : selectedElectionId.value
-  const listInTarget = getCandidatesByElection(targetElection)
-  const existingNums = listInTarget.map(c => parseInt(c.ballotNumber, 10)).filter(n => !isNaN(n))
-  const nextNum = existingNums.length > 0 ? Math.max(...existingNums) + 1 : 1
-  const suggestedBallot = String(nextNum).padStart(2, '0')
+  const targetElection = selectedElectionId.value === 'all' ? 'none' : selectedElectionId.value
+  let suggestedBallot = ''
+  if (targetElection !== 'none') {
+    const listInTarget = getCandidatesByElection(targetElection)
+    const existingNums = listInTarget.map(c => parseInt(c.ballotNumber, 10)).filter(n => !isNaN(n))
+    const nextNum = existingNums.length > 0 ? Math.max(...existingNums) + 1 : 1
+    suggestedBallot = String(nextNum).padStart(2, '0')
+  }
 
   candidateForm.value = {
     ...defaultCandidateForm(),
@@ -256,10 +299,6 @@ function saveCandidateForm() {
   candidateFormError.value = ''
   const f = candidateForm.value
 
-  if (!f.ballotNumber.trim()) {
-    candidateFormError.value = 'Nomor urut resmi wajib diisi.'
-    return
-  }
   if (!f.name.trim()) {
     candidateFormError.value = 'Nama paslon atau kandidat wajib diisi.'
     return
@@ -275,10 +314,62 @@ function saveCandidateForm() {
     }
   }
 
+  // Jika langsung diikutsertakan ke agenda pemilihan, nomor urut wajib diisi
+  if (f.electionId !== 'none' && !f.ballotNumber.trim()) {
+    candidateFormError.value = 'Nomor urut resmi wajib diisi jika langsung diikutsertakan ke agenda pemilihan.'
+    return
+  }
+
   const misi = f.misiText.split('\n').map(s => s.trim()).filter(Boolean)
   const pillars = f.pillarsText.split('\n').map(s => s.trim()).filter(Boolean)
 
   if (candidateModalMode.value === 'create') {
+    // Mode 1: Simpan sebagai Master Data Saja
+    if (f.electionId === 'none' || !f.electionId) {
+      const res = addMasterCandidate({
+        type: f.type,
+        name: f.name.trim(),
+        tagline: f.tagline.trim(),
+        coalition: f.coalition.trim() || (f.type === 'pair' ? 'Koalisi Paslon' : 'Independen'),
+        color: f.color || '#582be8',
+        photo: f.photo.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+        leadCandidate: {
+          name: f.leadName.trim(),
+          nim: f.leadNim.trim(),
+          faculty: f.leadFaculty.trim() || 'Fakultas Teknik',
+          major: f.leadMajor.trim() || 'Teknik Informatika',
+          semester: Number(f.leadSemester) || 6,
+          gpa: Number(f.leadGpa) || 3.5
+        },
+        viceCandidate: f.type === 'pair' ? {
+          name: f.viceName.trim(),
+          nim: f.viceNim.trim(),
+          faculty: f.viceFaculty.trim() || 'Fakultas Teknik',
+          major: f.viceMajor.trim() || 'Teknik Informatika',
+          semester: Number(f.viceSemester) || 6,
+          gpa: Number(f.viceGpa) || 3.5
+        } : undefined,
+        visi: f.visi.trim() || 'Mewujudkan kepemimpinan mahasiswa yang berintegritas dan berdampak.',
+        misi: misi.length > 0 ? misi : ['Digitalisasi layanan administrasi kemahasiswaan.'],
+        pillars: pillars.length > 0 ? pillars : ['Tata Kelola Organisasi Transparan', 'Advokasi Mahasiswa'],
+        documents: [
+          { name: 'KRS & Transkrip IPK (≥ 3.25)', status: f.leadGpa >= 3.25 ? 'valid' : 'pending' },
+          { name: 'Surat Bebas Sanksi Akademik & SKCK', status: 'valid' },
+          { name: 'Bukti Dukungan Mahasiswa Sah', status: 'valid' }
+        ]
+      })
+
+      if (!res.success) {
+        candidateFormError.value = res.message
+        return
+      }
+
+      triggerToast(res.message)
+      showCandidateModal.value = false
+      return
+    }
+
+    // Mode 2: Simpan Master + Ikutkan langsung ke Election
     const res = addCandidate({
       electionId: f.electionId,
       type: f.type,
@@ -326,7 +417,7 @@ function saveCandidateForm() {
   } else if (candidateModalMode.value === 'edit' && editingCandidateId.value) {
     const res = updateCandidate(editingCandidateId.value, {
       type: f.type,
-      ballotNumber: f.ballotNumber,
+      ballotNumber: f.ballotNumber || undefined,
       name: f.name.trim(),
       tagline: f.tagline.trim(),
       coalition: f.coalition.trim(),
@@ -612,9 +703,21 @@ function confirmDeleteCandidate() {
                   {{ c.ballotNumber }}
                 </div>
                 <div>
-                  <p class="font-mono text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                    Nomor Urut Resmi · {{ c.electionId }}
-                  </p>
+                  <div class="flex items-center gap-1.5 flex-wrap">
+                    <p class="font-mono text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                      {{ c.electionId === 'none' ? 'Master Kandidat' : 'Nomor Urut · ' + c.electionId }}
+                    </p>
+                    <span
+                      v-if="getCandidateParticipationsList(c.candidateId || c.id).length > 0"
+                      class="px-1.5 py-0.2 rounded bg-purple-50 text-[#582be8] font-bold text-[9px]"
+                      :title="getCandidateParticipationsList(c.candidateId || c.id).map(p => p.electionId + ' (#' + p.ballotNumber + ')').join(', ')"
+                    >
+                      {{ getCandidateParticipationsList(c.candidateId || c.id).length }} Agenda Diikuti
+                    </span>
+                    <span v-else class="px-1.5 py-0.2 rounded bg-slate-100 text-slate-500 font-semibold text-[9px]">
+                      Master Standby
+                    </span>
+                  </div>
                   <span
                     :class="[
                       'mt-1 inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-semibold',
@@ -978,16 +1081,20 @@ function confirmDeleteCandidate() {
 
               <!-- Pilihan Agenda Pemilihan -->
               <div>
-                <label class="block font-semibold text-slate-700 mb-1">Agenda Pemilihan Terkait <span class="text-red-500">*</span></label>
+                <label class="block font-semibold text-slate-700 mb-1">Agenda Pemilihan Terkait</label>
                 <select
                   v-model="candidateForm.electionId"
                   :disabled="candidateModalMode === 'edit'"
                   class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-medium outline-none focus:border-[#582be8]"
                 >
+                  <option value="none">Simpan sebagai Master Data Saja (Tanpa terikat Pemilihan)</option>
                   <option v-for="e in electionsList.filter(x => x.id !== 'all')" :key="e.id" :value="e.id">
                     {{ e.name }} ({{ e.id }})
                   </option>
                 </select>
+                <p class="text-[10px] text-slate-400 mt-1">
+                  Kandidat master dapat dipilih dan diikutsertakan ke agenda pemilihan kapan saja melalui detail pemilihan.
+                </p>
               </div>
 
               <!-- Tipe Pencalonan: Pasangan vs Tunggal -->

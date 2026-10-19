@@ -23,11 +23,10 @@ export interface CandidateRequirementDoc {
   note?: string
 }
 
-export interface ElectionCandidate {
+// ── Master Candidate (Profil Master Independen) ───────────────────────────────
+export interface MasterCandidate {
   id: string
-  electionId: string
   type: CandidateType
-  ballotNumber: string
   name: string
   leadCandidate: CandidatePerson
   viceCandidate?: CandidatePerson
@@ -35,27 +34,47 @@ export interface ElectionCandidate {
   photo: string
   color: string
   coalition: string
-  status: CandidateVerificationStatus
-  isInBallot: boolean
   visi: string
   misi: string[]
   pillars: string[]
   documents?: CandidateRequirementDoc[]
+  createdAt: string
+  updatedAt?: string
+}
+
+// ── Election Candidate Participation (Relasi Keikutsertaan per Election) ─────
+export interface ElectionCandidateParticipation {
+  id: string // ID partisipasi unik (misal cand-pem01-01)
+  electionId: string // Agenda Pemilihan
+  candidateId: string // Merujuk ke MasterCandidate.id
+  ballotNumber: string // Nomor urut unik dalam satu Election
+  status: CandidateVerificationStatus
+  isInBallot: boolean
   votesCount: number
   createdAt: string
   updatedAt?: string
 }
 
+// ── Unified View (Kompatibel dengan template yang mengonsumsi ElectionCandidate) ─
+export interface ElectionCandidate extends MasterCandidate {
+  id: string // ID partisipasi
+  participationId: string
+  candidateId: string // ID master kandidat
+  electionId: string
+  ballotNumber: string
+  status: CandidateVerificationStatus
+  isInBallot: boolean
+  votesCount: number
+  participationCreatedAt?: string
+  participationUpdatedAt?: string
+}
+
 export const useElectionCandidates = () => {
-  const candidatesDatabase = useState<ElectionCandidate[]>('electionCandidatesDatabase', () => [
-    // ══════════════════════════════════════════════════════════════════════════
-    // PEM-2025-01: Pemilihan Raya Ketua & Wakil Ketua BEM 2025 (Pasangan Calon)
-    // ══════════════════════════════════════════════════════════════════════════
+  // ── Master Candidates Database ───────────────────────────────────────────
+  const masterCandidatesDatabase = useState<MasterCandidate[]>('masterCandidatesDatabase', () => [
     {
-      id: 'cand-pem01-01',
-      electionId: 'PEM-2025-01',
+      id: 'mcand-01',
       type: 'pair',
-      ballotNumber: '01',
       name: 'Farhan & Nabila',
       leadCandidate: {
         name: 'Muhammad Farhan',
@@ -79,8 +98,6 @@ export const useElectionCandidates = () => {
       photo: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
       color: '#582be8',
       coalition: 'BEM FT - FEB Bersatu',
-      status: 'Terverifikasi KPU',
-      isInBallot: true,
       visi: 'Terwujudnya BEM yang sinergis, adaptif, dan berdampak nyata bagi seluruh civitas akademika melalui penguatan tata kelola organisasi yang transparan, modern, dan berintegritas.',
       misi: [
         'Digitalisasi layanan administrasi ormawa terpadu satu pintu.',
@@ -97,14 +114,11 @@ export const useElectionCandidates = () => {
         { name: 'Surat Bebas Sanksi Akademik & SKCK', status: 'valid', note: 'Terverifikasi Dekanat' },
         { name: 'Dukungan Mahasiswa (≥ 150 KTM)', status: 'valid', note: '185 berkas sah terverifikasi' }
       ],
-      votesCount: 1485,
       createdAt: '2025-01-20T10:00:00'
     },
     {
-      id: 'cand-pem01-02',
-      electionId: 'PEM-2025-01',
+      id: 'mcand-02',
       type: 'pair',
-      ballotNumber: '02',
       name: 'Ahmad & Dimas',
       leadCandidate: {
         name: 'Ahmad Rizky Pratama',
@@ -128,8 +142,6 @@ export const useElectionCandidates = () => {
       photo: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80',
       color: '#2563eb',
       coalition: 'Koalisi Reformasi FH-FISIP',
-      status: 'Terverifikasi KPU',
-      isInBallot: true,
       visi: 'Menjadikan BEM sebagai wadah integritas berkeadilan yang memperjuangkan aspirasi mahasiswa secara independen dan progresif.',
       misi: [
         'Transparansi anggaran BEM terbuka ke publik.',
@@ -146,14 +158,11 @@ export const useElectionCandidates = () => {
         { name: 'Surat Bebas Sanksi Akademik & SKCK', status: 'valid', note: 'Terverifikasi Dekanat' },
         { name: 'Dukungan Mahasiswa (≥ 150 KTM)', status: 'valid', note: '162 berkas sah terverifikasi' }
       ],
-      votesCount: 665,
       createdAt: '2025-01-22T11:00:00'
     },
     {
-      id: 'cand-pem01-03',
-      electionId: 'PEM-2025-01',
+      id: 'mcand-03',
       type: 'pair',
-      ballotNumber: '03',
       name: 'Siti & Kevin',
       leadCandidate: {
         name: 'Siti Aisyah Rahma',
@@ -177,8 +186,6 @@ export const useElectionCandidates = () => {
       photo: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=400&q=80',
       color: '#059669',
       coalition: 'Poros Harmoni FK-Psikologi',
-      status: 'Terverifikasi KPU',
-      isInBallot: true,
       visi: 'Mewujudkan lingkungan kampus yang sehat, suportif, dan berprestasi unggul secara mental maupun akademis.',
       misi: [
         'Layanan klinik konseling mental gratis bagi civitas akademika.',
@@ -195,18 +202,11 @@ export const useElectionCandidates = () => {
         { name: 'Surat Bebas Sanksi Akademik & SKCK', status: 'valid', note: 'Terverifikasi Dekanat' },
         { name: 'Dukungan Mahasiswa (≥ 150 KTM)', status: 'valid', note: '170 berkas sah terverifikasi' }
       ],
-      votesCount: 0,
       createdAt: '2025-01-25T14:30:00'
     },
-
-    // ══════════════════════════════════════════════════════════════════════════
-    // PEM-2025-02: Dewan Perwakilan Mahasiswa FT 2025 (Kandidat Tunggal/Independen)
-    // ══════════════════════════════════════════════════════════════════════════
     {
-      id: 'cand-pem02-01',
-      electionId: 'PEM-2025-02',
+      id: 'mcand-04',
       type: 'single',
-      ballotNumber: '01',
       name: 'Bagus Wicaksono',
       leadCandidate: {
         name: 'Bagus Wicaksono',
@@ -221,8 +221,6 @@ export const useElectionCandidates = () => {
       photo: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80',
       color: '#7c3aed',
       coalition: 'Independen Elektro',
-      status: 'Terverifikasi KPU',
-      isInBallot: true,
       visi: 'Mengoptimalkan peran legislasi dan pengawasan DPM FT yang transparan dan akuntabel.',
       misi: [
         'Audit berkala fasilitas laboratorium teknik elektro.',
@@ -236,14 +234,11 @@ export const useElectionCandidates = () => {
         { name: 'Transkrip IPK', status: 'valid', note: 'IPK 3.78 memenuhi' },
         { name: 'Dukungan Departemen', status: 'valid', note: '75 dukungan sah' }
       ],
-      votesCount: 780,
       createdAt: '2025-01-26T09:00:00'
     },
     {
-      id: 'cand-pem02-02',
-      electionId: 'PEM-2025-02',
+      id: 'mcand-05',
       type: 'single',
-      ballotNumber: '02',
       name: 'Rian Syahputra',
       leadCandidate: {
         name: 'Rian Syahputra',
@@ -258,8 +253,6 @@ export const useElectionCandidates = () => {
       photo: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=400&q=80',
       color: '#ea580c',
       coalition: 'Independen Mesin',
-      status: 'Terverifikasi KPU',
-      isInBallot: true,
       visi: 'Memperjuangkan alokasi riset praktikum yang adil bagi seluruh departemen teknik.',
       misi: [
         'Kawal transparansi alokasi dana bengkel dan riset mesin.',
@@ -273,15 +266,12 @@ export const useElectionCandidates = () => {
         { name: 'Transkrip IPK', status: 'valid', note: 'IPK 3.60 memenuhi' },
         { name: 'Dukungan Departemen', status: 'valid', note: '80 dukungan sah' }
       ],
-      votesCount: 490,
       createdAt: '2025-01-28T10:00:00'
     },
     {
-      id: 'cand-pem02-03',
-      electionId: 'PEM-2025-02',
+      id: 'mcand-06',
       type: 'single',
-      ballotNumber: '03',
-      name: 'Kevin Pratama',
+      name: 'Kevin Pratama (Sipil)',
       leadCandidate: {
         name: 'Kevin Pratama',
         nim: '2103103055',
@@ -295,8 +285,6 @@ export const useElectionCandidates = () => {
       photo: 'https://lh3.googleusercontent.com/aida-public/AB6AXuC8ZolsDt3nkBLwOHctmLoRNvWc088cxfD6y44-TPisMrMWndDerR7aA8l9zAC8u62eeNlwax20qIkAWN6UBHaGcXKv2UR7cVTqQ5LLtaMyPz3iwURAC1-3WamDzHu1eewR28qrWv3SvkpKa62aHVz4ydh9LMGuiFHnzoKom9uwyskdncQBV00diAh5uxcsxgqqOtKxFISCfbnV30XTOOS8PjmWkcR65cp3mzwhWtPncP0BiF-bytBHgQ',
       color: '#0891b2',
       coalition: 'Departemen Sipil',
-      status: 'Terverifikasi KPU',
-      isInBallot: true,
       visi: 'Mendorong pengawasan fasilitas sarana prasarana gedung teknik yang aman dan modern.',
       misi: [
         'Audit berkala keselamatan gedung laboratorium teknik.',
@@ -310,14 +298,11 @@ export const useElectionCandidates = () => {
         { name: 'Transkrip IPK (≥ 3.25)', status: 'valid', note: 'IPK 3.52 sah' },
         { name: 'Dukungan Departemen Sipil', status: 'valid', note: '100% Lengkap' }
       ],
-      votesCount: 0,
       createdAt: '2025-01-30T11:00:00'
     },
     {
-      id: 'cand-pem02-04',
-      electionId: 'PEM-2025-02',
+      id: 'mcand-07',
       type: 'single',
-      ballotNumber: '04',
       name: 'Maya Anindita',
       leadCandidate: {
         name: 'Maya Anindita',
@@ -332,8 +317,6 @@ export const useElectionCandidates = () => {
       photo: 'https://lh3.googleusercontent.com/aida-public/AB6AXuD63BmQhg12pZpZKonjYHL_esj95QaS6lHrV6jNvI9JxUGtfPolNd1kHg0HZ8zqkH8pWR6o-eAQwth1gTdIOfUcPUIQzQZ0gV0sqDmH7kl39K1xoKbPeXXuw8AJP33wH102_1nrdYWTobAnlhKIJOAQFFpuEWkRl8-Q4eYzvAUK7Bl6zZgzvkasScV9RtZBZXs_mujOaz_BFm-Z5btVxQ4IK9wjyfm91B78rtftaMfv5VfbEOZ21LowDw',
       color: '#d97706',
       coalition: 'Departemen Mesin',
-      status: 'Menunggu Berkas',
-      isInBallot: false,
       visi: 'Mewujudkan representasi aspirasi mahasiswa mesin yang tangguh dan solutif.',
       misi: [
         'Penyusunan perda perlindungan kegiatan praktikum mahasiswa.',
@@ -347,14 +330,11 @@ export const useElectionCandidates = () => {
         { name: 'Transkrip IPK', status: 'valid', note: 'IPK 3.80 memenuhi' },
         { name: 'Surat Bebas Sanksi Akademik & SKCK', status: 'pending', note: 'Menunggu SKCK Polres' }
       ],
-      votesCount: 0,
       createdAt: '2025-02-02T13:00:00'
     },
     {
-      id: 'cand-pem02-05',
-      electionId: 'PEM-2025-02',
+      id: 'mcand-08',
       type: 'single',
-      ballotNumber: '05',
       name: 'Fikri Haikal',
       leadCandidate: {
         name: 'Fikri Haikal',
@@ -369,8 +349,6 @@ export const useElectionCandidates = () => {
       photo: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAC6whJ-zQgpnIq9ZBiWhLAgJ7_WusIKoHIHNvLdSxQlZ6BA7G3qpLL0M1QAgUwTvHrJEvQgTm3WYRwSw1WyrmnkbzYAnvGZNOct2GkeEpmXp9J5m5RzibPHX8R2YSL_dmewMWhMdsjnmr0J_wkkVVQCSIwdYdHXOLNoQtw55GHf3wegTHXLBCeLjs3CX7BeXvgE6AUHIKIn-ARD-SDKrzGGPppgicNEwvMJfCNeq09whEpzisIVNYHPA',
       color: '#b45309',
       coalition: 'Departemen Arsitektur',
-      status: 'Revisi Dukungan',
-      isInBallot: false,
       visi: 'Menghadirkan tata ruang kampus yang estetik, inklusif, dan ramah lingkungan.',
       misi: [
         'Perda fasilitas studio perancangan dan lab 24 jam.',
@@ -384,18 +362,11 @@ export const useElectionCandidates = () => {
         { name: 'Transkrip IPK', status: 'valid', note: 'IPK 3.42 memenuhi' },
         { name: 'Bukti Dukungan Mahasiswa', status: 'pending', note: 'Kurang 12 KTM dukungan' }
       ],
-      votesCount: 0,
       createdAt: '2025-02-03T15:00:00'
     },
-
-    // ══════════════════════════════════════════════════════════════════════════
-    // PEM-2025-03: Pemilihan Ketua Himpunan Mahasiswa Informatika (HMIF)
-    // ══════════════════════════════════════════════════════════════════════════
     {
-      id: 'cand-pem03-01',
-      electionId: 'PEM-2025-03',
+      id: 'mcand-09',
       type: 'pair',
-      ballotNumber: '01',
       name: 'Aditya & Ryan',
       leadCandidate: {
         name: 'Aditya Nugraha',
@@ -419,8 +390,6 @@ export const useElectionCandidates = () => {
       photo: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=400&q=80',
       color: '#0284c7',
       coalition: 'Dev Alliance',
-      status: 'Terverifikasi KPU',
-      isInBallot: true,
       visi: 'Mewujudkan HMIF sebagai ekosistem rekayasa teknologi informasi yang berdaya saing global.',
       misi: [
         'Inkubasi kompetisi hackathon nasional dan internasional.',
@@ -434,14 +403,11 @@ export const useElectionCandidates = () => {
         { name: 'Transkrip IPK', status: 'valid', note: 'IPK memenuhi' },
         { name: 'LPJ Kepengurusan Sebelumnya', status: 'valid', note: 'Diterima KPU HMIF' }
       ],
-      votesCount: 0,
       createdAt: '2025-02-05T08:00:00'
     },
     {
-      id: 'cand-pem03-02',
-      electionId: 'PEM-2025-03',
+      id: 'mcand-10',
       type: 'pair',
-      ballotNumber: '02',
       name: 'Fajar & Ilham',
       leadCandidate: {
         name: 'Fajar Pratama',
@@ -465,8 +431,6 @@ export const useElectionCandidates = () => {
       photo: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=400&q=80',
       color: '#059669',
       coalition: 'Tech Open Source',
-      status: 'Terverifikasi KPU',
-      isInBallot: true,
       visi: 'Membangun kebersamaan mahasiswa informatika berbasis riset kolaboratif dan kontribusi open-source.',
       misi: [
         'Penyelenggaraan workshop AI & Cloud Computing berkala.',
@@ -480,57 +444,348 @@ export const useElectionCandidates = () => {
         { name: 'Transkrip IPK', status: 'valid', note: 'IPK memenuhi' },
         { name: 'Surat Rekomendasi Dosen Pembimbing', status: 'valid', note: 'Lengkap' }
       ],
-      votesCount: 0,
       createdAt: '2025-02-06T09:30:00'
+    },
+    {
+      id: 'mcand-11',
+      type: 'single',
+      name: 'Rizka Amelia',
+      leadCandidate: {
+        name: 'Rizka Amelia Putri',
+        nim: '2201104018',
+        faculty: 'Fakultas Farmasi',
+        facultyCode: 'FF',
+        major: 'S1 Farmasi Klinis',
+        semester: 6,
+        gpa: 3.88
+      },
+      tagline: '“Dedikasi Saintifik untuk Kesehatan Kampus”',
+      photo: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=400&q=80',
+      color: '#ec4899',
+      coalition: 'Independen Farmasi',
+      visi: 'Menghadirkan advokasi kesehatan mahasiswa terpadu dan penguatan riset sains.',
+      misi: [
+        'Penyediaan kotak P3K darurat di setiap gedung ormawa.',
+        'Edukasi promotif kesehatan mental dan fisik berkala.'
+      ],
+      pillars: [
+        'Layanan Tanggap Darurat Medis Ormawa',
+        'Riset Kolaboratif Sains Mahasiswa'
+      ],
+      documents: [
+        { name: 'Transkrip IPK', status: 'valid', note: 'IPK 3.88 memenuhi' },
+        { name: 'Dukungan Fakultas', status: 'valid', note: '120 berkas KTM sah' }
+      ],
+      createdAt: '2025-02-10T11:00:00'
+    },
+    {
+      id: 'mcand-12',
+      type: 'pair',
+      name: 'Danang & Tiara',
+      leadCandidate: {
+        name: 'Danang Prasetya',
+        nim: '2107102005',
+        faculty: 'Fakultas MIPA',
+        facultyCode: 'FMIPA',
+        major: 'S1 Matematika',
+        semester: 8,
+        gpa: 3.74
+      },
+      viceCandidate: {
+        name: 'Tiara Maharani',
+        nim: '2107103042',
+        faculty: 'Fakultas MIPA',
+        facultyCode: 'FMIPA',
+        major: 'S1 Kimia',
+        semester: 8,
+        gpa: 3.69
+      },
+      tagline: '“Akurasi Data, Solusi Nyata Sains Mahasiswa”',
+      photo: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80',
+      color: '#06b6d4',
+      coalition: 'Poros Kolaborasi Saintis Muda',
+      visi: 'Membangun kepemimpinan berbasis data sains analitik untuk perumusan kebijakan kemahasiswaan yang terukur.',
+      misi: [
+        'Survei kepuasan mahasiswa berbasis big data analitis berkala.',
+        'Akselerasi inkubasi olimpiade sains mahasiswa tingkat nasional.'
+      ],
+      pillars: [
+        'Pusat Survei Data Kebijakan Kampus',
+        'Inkubasi Prestasi Sains Nasional'
+      ],
+      documents: [
+        { name: 'KRS & Transkrip IPK', status: 'valid', note: 'IPK memenuhi' },
+        { name: 'SKCK & Rekomendasi Dekan', status: 'valid', note: 'Sah' }
+      ],
+      createdAt: '2025-02-12T14:00:00'
     }
   ])
 
+  // ── Election Candidate Participations Database ───────────────────────────
+  // Menyimpan 10 data relasi seed yang mempertahankan ID awal (`cand-pemXX-XX`)
+  const electionCandidateParticipationsDatabase = useState<ElectionCandidateParticipation[]>(
+    'electionCandidateParticipationsDatabase',
+    () => [
+      // PEM-2025-01
+      {
+        id: 'cand-pem01-01',
+        electionId: 'PEM-2025-01',
+        candidateId: 'mcand-01',
+        ballotNumber: '01',
+        status: 'Terverifikasi KPU',
+        isInBallot: true,
+        votesCount: 1485,
+        createdAt: '2025-01-20T10:00:00'
+      },
+      {
+        id: 'cand-pem01-02',
+        electionId: 'PEM-2025-01',
+        candidateId: 'mcand-02',
+        ballotNumber: '02',
+        status: 'Terverifikasi KPU',
+        isInBallot: true,
+        votesCount: 665,
+        createdAt: '2025-01-22T11:00:00'
+      },
+      {
+        id: 'cand-pem01-03',
+        electionId: 'PEM-2025-01',
+        candidateId: 'mcand-03',
+        ballotNumber: '03',
+        status: 'Terverifikasi KPU',
+        isInBallot: true,
+        votesCount: 0,
+        createdAt: '2025-01-25T14:30:00'
+      },
+
+      // PEM-2025-02
+      {
+        id: 'cand-pem02-01',
+        electionId: 'PEM-2025-02',
+        candidateId: 'mcand-04',
+        ballotNumber: '01',
+        status: 'Terverifikasi KPU',
+        isInBallot: true,
+        votesCount: 780,
+        createdAt: '2025-01-26T09:00:00'
+      },
+      {
+        id: 'cand-pem02-02',
+        electionId: 'PEM-2025-02',
+        candidateId: 'mcand-05',
+        ballotNumber: '02',
+        status: 'Terverifikasi KPU',
+        isInBallot: true,
+        votesCount: 490,
+        createdAt: '2025-01-28T10:00:00'
+      },
+      {
+        id: 'cand-pem02-03',
+        electionId: 'PEM-2025-02',
+        candidateId: 'mcand-06',
+        ballotNumber: '03',
+        status: 'Terverifikasi KPU',
+        isInBallot: true,
+        votesCount: 0,
+        createdAt: '2025-01-30T11:00:00'
+      },
+      {
+        id: 'cand-pem02-04',
+        electionId: 'PEM-2025-02',
+        candidateId: 'mcand-07',
+        ballotNumber: '04',
+        status: 'Menunggu Berkas',
+        isInBallot: false,
+        votesCount: 0,
+        createdAt: '2025-02-02T13:00:00'
+      },
+      {
+        id: 'cand-pem02-05',
+        electionId: 'PEM-2025-02',
+        candidateId: 'mcand-08',
+        ballotNumber: '05',
+        status: 'Revisi Dukungan',
+        isInBallot: false,
+        votesCount: 0,
+        createdAt: '2025-02-03T15:00:00'
+      },
+
+      // PEM-2025-03
+      {
+        id: 'cand-pem03-01',
+        electionId: 'PEM-2025-03',
+        candidateId: 'mcand-09',
+        ballotNumber: '01',
+        status: 'Terverifikasi KPU',
+        isInBallot: true,
+        votesCount: 0,
+        createdAt: '2025-02-05T08:00:00'
+      },
+      {
+        id: 'cand-pem03-02',
+        electionId: 'PEM-2025-03',
+        candidateId: 'mcand-10',
+        ballotNumber: '02',
+        status: 'Terverifikasi KPU',
+        isInBallot: true,
+        votesCount: 0,
+        createdAt: '2025-02-06T09:30:00'
+      }
+    ]
+  )
+
+  // ── Helper: Join Master with Participation ──────────────────────────────
+  const hydrateParticipation = (part: ElectionCandidateParticipation): ElectionCandidate | null => {
+    const master = masterCandidatesDatabase.value.find(m => m.id === part.candidateId)
+    if (!master) return null
+    return {
+      ...master,
+      id: part.id,
+      participationId: part.id,
+      candidateId: master.id,
+      electionId: part.electionId,
+      ballotNumber: part.ballotNumber,
+      status: part.status,
+      isInBallot: part.isInBallot,
+      votesCount: part.votesCount,
+      participationCreatedAt: part.createdAt,
+      participationUpdatedAt: part.updatedAt
+    }
+  }
+
+  // ── Unified Database Computed (Kompatibel dengan templates) ─────────────
+  const candidatesDatabase = computed<ElectionCandidate[]>({
+    get() {
+      return electionCandidateParticipationsDatabase.value
+        .map(hydrateParticipation)
+        .filter((c): c is ElectionCandidate => c !== null)
+    },
+    set(newVal) {
+      // no-op to protect one-way hydration
+    }
+  })
+
   // ── Query Helpers ────────────────────────────────────────────────────────
+  const getAllMasterCandidates = (): MasterCandidate[] => {
+    return masterCandidatesDatabase.value
+  }
+
+  const getMasterCandidateById = (id: string): MasterCandidate | undefined => {
+    return masterCandidatesDatabase.value.find(m => m.id === id)
+  }
+
   const getCandidatesByElection = (electionId: string): ElectionCandidate[] => {
-    return candidatesDatabase.value
-      .filter(c => c.electionId === electionId)
+    return electionCandidateParticipationsDatabase.value
+      .filter(p => p.electionId === electionId)
+      .map(hydrateParticipation)
+      .filter((c): c is ElectionCandidate => c !== null)
       .sort((a, b) => a.ballotNumber.localeCompare(b.ballotNumber, undefined, { numeric: true }))
   }
 
   const getCandidateById = (id: string): ElectionCandidate | undefined => {
-    return candidatesDatabase.value.find(c => c.id === id)
+    // Cari berdasarkan participation id terlebih dahulu
+    const part = electionCandidateParticipationsDatabase.value.find(p => p.id === id)
+    if (part) {
+      const hydrated = hydrateParticipation(part)
+      if (hydrated) return hydrated
+    }
+    // Jika tidak ditemukan, cari berdasarkan candidateId pertama yang ada
+    const partByMaster = electionCandidateParticipationsDatabase.value.find(p => p.candidateId === id)
+    if (partByMaster) {
+      const hydrated = hydrateParticipation(partByMaster)
+      if (hydrated) return hydrated
+    }
+    // Fallback: master saja dikemas sebagai placeholder candidate
+    const master = masterCandidatesDatabase.value.find(m => m.id === id)
+    if (master) {
+      return {
+        ...master,
+        id: master.id,
+        participationId: '',
+        candidateId: master.id,
+        electionId: '',
+        ballotNumber: '',
+        status: 'Menunggu Berkas',
+        isInBallot: false,
+        votesCount: 0
+      }
+    }
+    return undefined
+  }
+
+  const getMasterCandidateParticipations = (candidateId: string): ElectionCandidateParticipation[] => {
+    return electionCandidateParticipationsDatabase.value.filter(p => p.candidateId === candidateId)
+  }
+
+  // ── Cek Keikutsertaan & Calon yang Belum Terdaftar ────────────────────────
+  const isCandidateInElection = (electionId: string, candidateId: string): boolean => {
+    return electionCandidateParticipationsDatabase.value.some(
+      p => p.electionId === electionId && p.candidateId === candidateId
+    )
+  }
+
+  const getUnassignedMasterCandidates = (electionId: string): MasterCandidate[] => {
+    const assignedIds = new Set(
+      electionCandidateParticipationsDatabase.value
+        .filter(p => p.electionId === electionId)
+        .map(p => p.candidateId)
+    )
+    return masterCandidatesDatabase.value.filter(m => !assignedIds.has(m.id))
   }
 
   // ── Validation: Nomor Urut Unik per Pemilihan ────────────────────────────
   const isBallotNumberAvailable = (
     electionId: string,
     ballotNumber: string,
-    excludeCandidateId?: string
+    excludeParticipationId?: string
   ): boolean => {
     const cleanNumber = ballotNumber.trim().padStart(2, '0')
-    return !candidatesDatabase.value.some(
-      c => c.electionId === electionId &&
-           c.id !== excludeCandidateId &&
-           c.ballotNumber.trim().padStart(2, '0') === cleanNumber
+    return !electionCandidateParticipationsDatabase.value.some(
+      p => p.electionId === electionId &&
+           p.id !== excludeParticipationId &&
+           p.ballotNumber.trim().padStart(2, '0') === cleanNumber
     )
   }
 
-  // ── Validation: Aturan Penghapusan Kandidat (Aturan Bisnis 6) ─────────────
+  // Cari nomor urut berikutnya yang tersedia pada suatu Election
+  const getNextAvailableBallotNumber = (electionId: string): string => {
+    const existing = electionCandidateParticipationsDatabase.value
+      .filter(p => p.electionId === electionId)
+      .map(p => parseInt(p.ballotNumber, 10))
+      .filter(n => !isNaN(n))
+    
+    let candidateNum = 1
+    while (existing.includes(candidateNum)) {
+      candidateNum++
+    }
+    return String(candidateNum).padStart(2, '0')
+  }
+
+  // ── Validation: Aturan Penghapusan Partisipasi / Kandidat ────────────────
   const canDeleteCandidate = (
-    candidateId: string,
+    participationOrCandidateId: string,
     electionStatus?: string
   ): { allowed: boolean; reason?: string } => {
-    const candidate = getCandidateById(candidateId)
-    if (!candidate) {
-      return { allowed: false, reason: 'Kandidat tidak ditemukan dalam sistem.' }
+    // Cari relasi partisipasi
+    const part = electionCandidateParticipationsDatabase.value.find(
+      p => p.id === participationOrCandidateId || p.candidateId === participationOrCandidateId
+    )
+
+    if (!part) {
+      return { allowed: false, reason: 'Kandidat / keikutsertaan tidak ditemukan dalam sistem.' }
     }
 
-    if (candidate.votesCount > 0) {
+    if (part.votesCount > 0) {
       return {
         allowed: false,
-        reason: `Kandidat telah memiliki ${candidate.votesCount} suara tercatat pada buku besar. Kandidat tidak boleh dihapus demi integritas rekapitulasi.`
+        reason: `Kandidat telah memiliki ${part.votesCount} suara tercatat pada buku besar. Kandidat tidak boleh dihapus demi integritas rekapitulasi.`
       }
     }
 
     if (electionStatus === 'Berlangsung') {
       return {
         allowed: false,
-        reason: 'Pemilihan sedang berlangsung (Live Voting). Perubahan atau penghapusan daftar calon tidak diizinkan selama bilik suara dibuka.'
+        reason: 'Pemilihan sedang berlangsung (Live Voting). Perubahan atau pencabutan daftar calon tidak diizinkan selama bilik suara dibuka.'
       }
     }
 
@@ -544,71 +799,194 @@ export const useElectionCandidates = () => {
     return { allowed: true }
   }
 
-  // ── Mutation: Tambah Kandidat ────────────────────────────────────────────
-  const addCandidate = (
-    data: Omit<ElectionCandidate, 'id' | 'createdAt' | 'isInBallot'> & { isInBallot?: boolean }
-  ): { success: boolean; message: string; candidate?: ElectionCandidate } => {
-    if (!data.electionId) {
-      return { success: false, message: 'ID pemilihan (electionId) wajib disertakan.' }
-    }
-
+  // ── Mutation Master: Tambah Master Kandidat ──────────────────────────────
+  const addMasterCandidate = (
+    data: Omit<MasterCandidate, 'id' | 'createdAt'>
+  ): { success: boolean; message: string; candidate?: MasterCandidate } => {
     if (!data.name.trim()) {
       return { success: false, message: 'Nama paslon atau kandidat wajib diisi.' }
     }
-
-    if (!data.ballotNumber.trim()) {
-      return { success: false, message: 'Nomor urut resmi wajib diisi.' }
-    }
-
-    const ballotNum = data.ballotNumber.trim().padStart(2, '0')
-
-    if (!isBallotNumberAvailable(data.electionId, ballotNum)) {
-      return {
-        success: false,
-        message: `Nomor urut #${ballotNum} sudah digunakan oleh calon lain pada pemilihan ini. Pilih nomor urut lain.`
-      }
-    }
-
     if (!data.leadCandidate.name.trim() || !data.leadCandidate.nim.trim()) {
       return { success: false, message: 'Data ketua/calon utama (Nama dan NIM) wajib diisi lengkap.' }
     }
-
     if (data.type === 'pair') {
       if (!data.viceCandidate || !data.viceCandidate.name.trim() || !data.viceCandidate.nim.trim()) {
         return { success: false, message: 'Untuk tipe pasangan calon, data wakil ketua (Nama dan NIM) wajib diisi.' }
       }
     }
 
-    const isInBallot = data.status === 'Terverifikasi KPU'
-
-    const newCandidate: ElectionCandidate = {
+    const newId = `mcand-${Date.now().toString().slice(-4)}`
+    const newMaster: MasterCandidate = {
       ...data,
-      id: `cand-${data.electionId.toLowerCase()}-${Date.now().toString().slice(-4)}`,
-      ballotNumber: ballotNum,
-      isInBallot,
-      votesCount: data.votesCount || 0,
+      id: newId,
+      name: data.name.trim(),
+      tagline: data.tagline.trim(),
+      coalition: data.coalition.trim() || (data.type === 'pair' ? 'Koalisi Paslon' : 'Independen'),
+      color: data.color || '#582be8',
+      photo: data.photo.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+      visi: data.visi.trim() || 'Mewujudkan kepemimpinan mahasiswa yang berintegritas dan berdampak nyata.',
+      misi: data.misi.length > 0 ? data.misi : ['Digitalisasi layanan administrasi kemahasiswaan.'],
+      pillars: data.pillars.length > 0 ? data.pillars : ['Tata Kelola Organisasi Transparan', 'Advokasi Mahasiswa'],
+      documents: data.documents || [
+        { name: 'KRS & Transkrip IPK (≥ 3.25)', status: 'valid', note: 'Berkas master sah' },
+        { name: 'Surat Bebas Sanksi Akademik & SKCK', status: 'valid', note: 'Terverifikasi' },
+        { name: 'Dukungan Mahasiswa Sah', status: 'valid', note: 'Lengkap' }
+      ],
       createdAt: new Date().toISOString()
     }
 
-    candidatesDatabase.value.push(newCandidate)
+    masterCandidatesDatabase.value.push(newMaster)
     return {
       success: true,
-      message: `Kandidat "${newCandidate.name}" (#${newCandidate.ballotNumber}) berhasil ditambahkan.`,
-      candidate: newCandidate
+      message: `Master data kandidat "${newMaster.name}" berhasil didaftarkan.`,
+      candidate: newMaster
     }
   }
 
-  // ── Mutation: Edit Kandidat ──────────────────────────────────────────────
-  const updateCandidate = (
+  // ── Mutation Master: Update Master Kandidat ──────────────────────────────
+  const updateMasterCandidate = (
     id: string,
-    updates: Partial<Omit<ElectionCandidate, 'id' | 'electionId' | 'createdAt'>>
-  ): { success: boolean; message: string; candidate?: ElectionCandidate } => {
-    const index = candidatesDatabase.value.findIndex(c => c.id === id)
-    if (index === -1) {
-      return { success: false, message: 'Kandidat tidak ditemukan.' }
+    updates: Partial<Omit<MasterCandidate, 'id' | 'createdAt'>>
+  ): { success: boolean; message: string; candidate?: MasterCandidate } => {
+    const idx = masterCandidatesDatabase.value.findIndex(m => m.id === id)
+    if (idx === -1) {
+      return { success: false, message: 'Master kandidat tidak ditemukan.' }
     }
 
-    const existing = candidatesDatabase.value[index]
+    const existing = masterCandidatesDatabase.value[idx]
+    const updated: MasterCandidate = {
+      ...existing,
+      ...updates,
+      updatedAt: new Date().toISOString()
+    }
+
+    if (updated.type === 'single') {
+      delete updated.viceCandidate
+    }
+
+    masterCandidatesDatabase.value[idx] = updated
+    return {
+      success: true,
+      message: `Data master kandidat "${updated.name}" berhasil diperbarui.`,
+      candidate: updated
+    }
+  }
+
+  // ── Mutation Master: Hapus Master Kandidat ───────────────────────────────
+  const deleteMasterCandidate = (
+    candidateId: string
+  ): { success: boolean; message: string } => {
+    const activeParticipations = electionCandidateParticipationsDatabase.value.filter(
+      p => p.candidateId === candidateId
+    )
+
+    if (activeParticipations.length > 0) {
+      const electionIds = activeParticipations.map(p => p.electionId).join(', ')
+      return {
+        success: false,
+        message: `Kandidat masih berpartisipasi dalam agenda pemilihan (${electionIds}). Cabut keikutsertaan terlebih dahulu sebelum menghapus data master.`
+      }
+    }
+
+    const idx = masterCandidatesDatabase.value.findIndex(m => m.id === candidateId)
+    if (idx === -1) {
+      return { success: false, message: 'Master kandidat tidak ditemukan.' }
+    }
+
+    const name = masterCandidatesDatabase.value[idx].name
+    masterCandidatesDatabase.value.splice(idx, 1)
+
+    return {
+      success: true,
+      message: `Master kandidat "${name}" berhasil dihapus dari sistem.`
+    }
+  }
+
+  // ── Mutation Participation: Tetapkan Kandidat ke Election ───────────────
+  const assignCandidatesToElection = (
+    electionId: string,
+    candidateIds: string[],
+    defaultStatus: CandidateVerificationStatus = 'Terverifikasi KPU'
+  ): { added: number; participations: ElectionCandidateParticipation[] } => {
+    const addedList: ElectionCandidateParticipation[] = []
+
+    for (const candId of candidateIds) {
+      // 1. Cek apakah master kandidat valid
+      const master = masterCandidatesDatabase.value.find(m => m.id === candId)
+      if (!master) continue
+
+      // 2. Cek apakah sudah terdaftar di election ini (tidak boleh diduplikasi)
+      const alreadyIn = isCandidateInElection(electionId, candId)
+      if (alreadyIn) continue
+
+      // 3. Tentukan nomor urut unik
+      const ballotNum = getNextAvailableBallotNumber(electionId)
+      const isInBallot = defaultStatus === 'Terverifikasi KPU'
+
+      const newPart: ElectionCandidateParticipation = {
+        id: `cand-${electionId.toLowerCase()}-${Date.now().toString().slice(-4)}${Math.floor(Math.random() * 90 + 10)}`,
+        electionId,
+        candidateId: candId,
+        ballotNumber: ballotNum,
+        status: defaultStatus,
+        isInBallot,
+        votesCount: 0,
+        createdAt: new Date().toISOString()
+      }
+
+      electionCandidateParticipationsDatabase.value.push(newPart)
+      addedList.push(newPart)
+    }
+
+    return {
+      added: addedList.length,
+      participations: addedList
+    }
+  }
+
+  // ── Mutation Participation: Cabut Keikutsertaan dari Election ───────────
+  const removeCandidateFromElection = (
+    electionId: string,
+    participationOrCandidateId: string,
+    electionStatus?: string
+  ): { success: boolean; message: string } => {
+    const check = canDeleteCandidate(participationOrCandidateId, electionStatus)
+    if (!check.allowed) {
+      return { success: false, message: check.reason || 'Keikutsertaan kandidat tidak dapat dicabut.' }
+    }
+
+    const idx = electionCandidateParticipationsDatabase.value.findIndex(
+      p => p.electionId === electionId &&
+           (p.id === participationOrCandidateId || p.candidateId === participationOrCandidateId)
+    )
+
+    if (idx === -1) {
+      return { success: false, message: 'Kandidat tidak terdaftar pada pemilihan ini.' }
+    }
+
+    const removedPart = electionCandidateParticipationsDatabase.value[idx]
+    const master = masterCandidatesDatabase.value.find(m => m.id === removedPart.candidateId)
+    const candName = master ? master.name : `Kandidat #${removedPart.ballotNumber}`
+
+    electionCandidateParticipationsDatabase.value.splice(idx, 1)
+
+    return {
+      success: true,
+      message: `Kandidat "${candName}" (#${removedPart.ballotNumber}) berhasil dicabut dari agenda ${electionId}. Master kandidat tetap tersimpan aman.`
+    }
+  }
+
+  // ── Mutation Participation: Update Partisipasi ──────────────────────────
+  const updateCandidateParticipation = (
+    participationId: string,
+    updates: Partial<Omit<ElectionCandidateParticipation, 'id' | 'electionId' | 'candidateId' | 'createdAt'>>
+  ): { success: boolean; message: string; participation?: ElectionCandidateParticipation } => {
+    const idx = electionCandidateParticipationsDatabase.value.findIndex(p => p.id === participationId)
+    if (idx === -1) {
+      return { success: false, message: 'Data keikutsertaan kandidat tidak ditemukan.' }
+    }
+
+    const existing = electionCandidateParticipationsDatabase.value[idx]
 
     if (updates.ballotNumber !== undefined && updates.ballotNumber.trim() !== '') {
       const cleanNum = updates.ballotNumber.trim().padStart(2, '0')
@@ -621,58 +999,176 @@ export const useElectionCandidates = () => {
       updates.ballotNumber = cleanNum
     }
 
-    if (updates.type === 'pair' && updates.viceCandidate) {
-      if (!updates.viceCandidate.name.trim() || !updates.viceCandidate.nim.trim()) {
-        return { success: false, message: 'Data wakil ketua wajib diisi untuk tipe pasangan calon.' }
-      }
-    }
-
     const nextStatus = updates.status !== undefined ? updates.status : existing.status
-    const isInBallot = nextStatus === 'Terverifikasi KPU'
+    const isInBallot = updates.isInBallot !== undefined ? updates.isInBallot : (nextStatus === 'Terverifikasi KPU')
 
-    const updated: ElectionCandidate = {
+    const updated: ElectionCandidateParticipation = {
       ...existing,
       ...updates,
+      status: nextStatus,
       isInBallot,
       updatedAt: new Date().toISOString()
     }
 
-    // Jika tipe diubah ke single, bersihkan viceCandidate
-    if (updated.type === 'single') {
-      delete updated.viceCandidate
-    }
-
-    candidatesDatabase.value[index] = updated
+    electionCandidateParticipationsDatabase.value[idx] = updated
     return {
       success: true,
-      message: `Data kandidat "${updated.name}" berhasil diperbarui.`,
-      candidate: updated
+      message: 'Data keikutsertaan kandidat berhasil diperbarui.',
+      participation: updated
     }
   }
 
-  // ── Mutation: Hapus Kandidat ─────────────────────────────────────────────
-  const deleteCandidate = (
-    candidateId: string,
-    electionStatus?: string
-  ): { success: boolean; message: string } => {
-    const check = canDeleteCandidate(candidateId, electionStatus)
-    if (!check.allowed) {
-      return { success: false, message: check.reason || 'Kandidat tidak dapat dihapus.' }
+  // ── Backward-Compatibility Helpers ───────────────────────────────────────
+  // Mempertahankan addCandidate() untuk kode lama atau pendaftaran master sekaligus
+  const addCandidate = (
+    data: Omit<ElectionCandidate, 'id' | 'createdAt' | 'isInBallot' | 'participationId' | 'candidateId'> & {
+      isInBallot?: boolean
+      candidateId?: string
+    }
+  ): { success: boolean; message: string; candidate?: ElectionCandidate } => {
+    if (!data.electionId) {
+      return { success: false, message: 'ID pemilihan (electionId) wajib disertakan.' }
     }
 
-    const index = candidatesDatabase.value.findIndex(c => c.id === candidateId)
-    if (index === -1) {
-      return { success: false, message: 'Kandidat tidak ditemukan.' }
+    // 1. Cek atau Buat Master Candidate
+    let masterId = data.candidateId
+    if (!masterId) {
+      const masterRes = addMasterCandidate({
+        type: data.type,
+        name: data.name,
+        leadCandidate: data.leadCandidate,
+        viceCandidate: data.viceCandidate,
+        tagline: data.tagline,
+        photo: data.photo,
+        color: data.color,
+        coalition: data.coalition,
+        visi: data.visi,
+        misi: data.misi,
+        pillars: data.pillars,
+        documents: data.documents
+      })
+      if (!masterRes.success || !masterRes.candidate) {
+        return { success: false, message: masterRes.message }
+      }
+      masterId = masterRes.candidate.id
     }
 
-    const name = candidatesDatabase.value[index].name
-    const num = candidatesDatabase.value[index].ballotNumber
-    candidatesDatabase.value.splice(index, 1)
+    // 2. Cek apakah sudah terdaftar di election ini
+    if (isCandidateInElection(data.electionId, masterId)) {
+      return { success: false, message: 'Kandidat ini sudah terdaftar pada agenda pemilihan tersebut.' }
+    }
+
+    // 3. Cek nomor urut
+    const ballotNum = data.ballotNumber.trim().padStart(2, '0')
+    if (!isBallotNumberAvailable(data.electionId, ballotNum)) {
+      return {
+        success: false,
+        message: `Nomor urut #${ballotNum} sudah digunakan oleh calon lain pada pemilihan ini. Pilih nomor urut lain.`
+      }
+    }
+
+    const isInBallot = data.status === 'Terverifikasi KPU'
+
+    const newPart: ElectionCandidateParticipation = {
+      id: `cand-${data.electionId.toLowerCase()}-${Date.now().toString().slice(-4)}`,
+      electionId: data.electionId,
+      candidateId: masterId,
+      ballotNumber: ballotNum,
+      status: data.status,
+      isInBallot,
+      votesCount: data.votesCount || 0,
+      createdAt: new Date().toISOString()
+    }
+
+    electionCandidateParticipationsDatabase.value.push(newPart)
+    const hydrated = hydrateParticipation(newPart)
 
     return {
       success: true,
-      message: `Kandidat "${name}" (#${num}) berhasil dihapus dari pemilihan.`
+      message: `Kandidat "${hydrated?.name || data.name}" (#${ballotNum}) berhasil ditambahkan.`,
+      candidate: hydrated || undefined
     }
+  }
+
+  const updateCandidate = (
+    id: string,
+    updates: Partial<Omit<ElectionCandidate, 'id' | 'electionId' | 'createdAt'>>
+  ): { success: boolean; message: string; candidate?: ElectionCandidate } => {
+    // 1. Cari partisipasi
+    let part = electionCandidateParticipationsDatabase.value.find(p => p.id === id)
+    if (!part) {
+      part = electionCandidateParticipationsDatabase.value.find(p => p.candidateId === id)
+    }
+
+    if (part) {
+      // Update partisipasi (ballotNumber, status, isInBallot)
+      const partUpdates: Partial<ElectionCandidateParticipation> = {}
+      if (updates.ballotNumber !== undefined) partUpdates.ballotNumber = updates.ballotNumber
+      if (updates.status !== undefined) partUpdates.status = updates.status
+      if (updates.isInBallot !== undefined) partUpdates.isInBallot = updates.isInBallot
+
+      if (Object.keys(partUpdates).length > 0) {
+        const partRes = updateCandidateParticipation(part.id, partUpdates)
+        if (!partRes.success) {
+          return { success: false, message: partRes.message }
+        }
+      }
+
+      // Update profil master jika ada perubahan field master
+      const masterUpdates: Partial<MasterCandidate> = {}
+      if (updates.name !== undefined) masterUpdates.name = updates.name
+      if (updates.type !== undefined) masterUpdates.type = updates.type
+      if (updates.tagline !== undefined) masterUpdates.tagline = updates.tagline
+      if (updates.coalition !== undefined) masterUpdates.coalition = updates.coalition
+      if (updates.color !== undefined) masterUpdates.color = updates.color
+      if (updates.photo !== undefined) masterUpdates.photo = updates.photo
+      if (updates.leadCandidate !== undefined) masterUpdates.leadCandidate = updates.leadCandidate
+      if (updates.viceCandidate !== undefined) masterUpdates.viceCandidate = updates.viceCandidate
+      if (updates.visi !== undefined) masterUpdates.visi = updates.visi
+      if (updates.misi !== undefined) masterUpdates.misi = updates.misi
+      if (updates.pillars !== undefined) masterUpdates.pillars = updates.pillars
+      if (updates.documents !== undefined) masterUpdates.documents = updates.documents
+
+      if (Object.keys(masterUpdates).length > 0) {
+        updateMasterCandidate(part.candidateId, masterUpdates)
+      }
+
+      const refreshed = hydrateParticipation(part)
+      return {
+        success: true,
+        message: `Data kandidat "${refreshed?.name || ''}" berhasil diperbarui.`,
+        candidate: refreshed || undefined
+      }
+    }
+
+    // Jika yang diedit langsung master candidate ID
+    const master = masterCandidatesDatabase.value.find(m => m.id === id)
+    if (master) {
+      const res = updateMasterCandidate(id, updates as any)
+      return {
+        success: res.success,
+        message: res.message
+      }
+    }
+
+    return { success: false, message: 'Kandidat tidak ditemukan.' }
+  }
+
+  const deleteCandidate = (
+    candidateIdOrPartId: string,
+    electionStatus?: string
+  ): { success: boolean; message: string } => {
+    // Cari apakah ini partisipasi
+    const part = electionCandidateParticipationsDatabase.value.find(
+      p => p.id === candidateIdOrPartId || p.candidateId === candidateIdOrPartId
+    )
+
+    if (part) {
+      return removeCandidateFromElection(part.electionId, part.id, electionStatus)
+    }
+
+    // Jika murni master candidate tanpa partisipasi
+    return deleteMasterCandidate(candidateIdOrPartId)
   }
 
   // ── Statistics Helper ───────────────────────────────────────────────────
@@ -693,10 +1189,31 @@ export const useElectionCandidates = () => {
   }
 
   return {
+    // State Databases
+    masterCandidatesDatabase,
+    electionCandidateParticipationsDatabase,
     candidatesDatabase,
+
+    // Master Candidate Operations
+    getAllMasterCandidates,
+    getMasterCandidateById,
+    addMasterCandidate,
+    updateMasterCandidate,
+    deleteMasterCandidate,
+    getMasterCandidateParticipations,
+
+    // Election Participation Operations
     getCandidatesByElection,
     getCandidateById,
+    isCandidateInElection,
+    getUnassignedMasterCandidates,
     isBallotNumberAvailable,
+    getNextAvailableBallotNumber,
+    assignCandidatesToElection,
+    removeCandidateFromElection,
+    updateCandidateParticipation,
+
+    // Shared & Backward Compatibility Operations
     canDeleteCandidate,
     addCandidate,
     updateCandidate,

@@ -3,23 +3,48 @@ definePageMeta({
   layout: 'admin'
 })
 
-// ─── Types ──────────────────────────────────────────────────────────
-interface Election {
-  id: string
-  name: string
-  description: string
-  level: string
-  icon: string
-  status: 'Draft' | 'Terjadwal' | 'Berlangsung' | 'Selesai'
-  startDate: string
-  endDate: string
-  candidates: number
-  candidateLabel: string
-  dptTarget: number
-  dptVoted: number
-  turnout: number
-  info: string
-  createdAt: string
+// ─── Composables & Types ─────────────────────────────────────────────
+import type { Election, ElectionStatus } from '~/composables/useElections'
+import {
+  useElections,
+  allowedTransitions,
+  canTransitionStatus,
+  getAvailableTransitions,
+  validateElectionSchedule,
+  formatDatetimeLocal
+} from '~/composables/useElections'
+
+const {
+  elections,
+  activeElectionId,
+  getElectionById,
+  getActiveElectionId,
+  getActiveElection,
+  isActiveElection,
+  setActiveElection,
+  addElection,
+  updateElection,
+  deleteElection,
+  generateElectionId
+} = useElections()
+
+
+
+// ─── Toast System ────────────────────────────────────────────────────
+const toastMessage = ref('')
+const showToast = ref(false)
+
+function triggerToast(msg: string) {
+  toastMessage.value = msg
+  showToast.value = true
+  setTimeout(() => {
+    showToast.value = false
+  }, 3500)
+}
+
+function handleSetActiveElection(id: string | null) {
+  const res = setActiveElection(id)
+  triggerToast(res.message)
 }
 
 // ─── Status Helpers ─────────────────────────────────────────────────
@@ -35,222 +60,6 @@ const allowedTransitions: Record<string, string[]> = {
   Terjadwal: ['Berlangsung', 'Draft'],
   Berlangsung: ['Selesai'],
   Selesai: []
-}
-
-// ─── Mock Data ──────────────────────────────────────────────────────
-const elections = ref<Election[]>([
-  {
-    id: 'PEM-2025-01',
-    name: 'Pemilihan Raya Ketua & Wakil Ketua BEM 2025',
-    description: 'Pemilihan umum raya untuk menentukan Ketua dan Wakil Ketua Badan Eksekutif Mahasiswa periode 2025/2026.',
-    level: 'Universitas (BEM KM)',
-    icon: 'account_balance',
-    status: 'Berlangsung',
-    startDate: '2025-02-26T08:00',
-    endDate: '2025-02-28T17:00',
-    candidates: 3,
-    candidateLabel: 'Pasangan Calon Terdaftar',
-    dptTarget: 2740,
-    dptVoted: 2150,
-    turnout: 78.4,
-    info: '',
-    createdAt: '2025-01-15T10:00'
-  },
-  {
-    id: 'PEM-2025-02',
-    name: 'Dewan Perwakilan Mahasiswa (DPM) Fakultas Teknik 2025',
-    description: 'Pemilihan anggota Dewan Perwakilan Mahasiswa Fakultas Teknik untuk periode 2025/2026.',
-    level: 'Fakultas Teknik',
-    icon: 'engineering',
-    status: 'Berlangsung',
-    startDate: '2025-02-27T09:00',
-    endDate: '2025-03-01T20:00',
-    candidates: 5,
-    candidateLabel: 'Kandidat Independen',
-    dptTarget: 2028,
-    dptVoted: 1270,
-    turnout: 62.6,
-    info: '',
-    createdAt: '2025-01-20T14:00'
-  },
-  {
-    id: 'PEM-2025-03',
-    name: 'Pemilihan Ketua Himpunan Mahasiswa Informatika (HMIF)',
-    description: 'Pemilihan Ketua dan Wakil Ketua Himpunan Mahasiswa Informatika untuk periode kepengurusan baru.',
-    level: 'Jurusan Informatika',
-    icon: 'terminal',
-    status: 'Terjadwal',
-    startDate: '2025-03-05T08:00',
-    endDate: '2025-03-07T17:00',
-    candidates: 2,
-    candidateLabel: 'Calon Ketua',
-    dptTarget: 820,
-    dptVoted: 0,
-    turnout: 0,
-    info: '',
-    createdAt: '2025-02-01T09:00'
-  },
-  {
-    id: 'PEM-2025-04',
-    name: 'Pemilihan Ketua Himpunan Mahasiswa Manajemen (HMM)',
-    description: 'Pemilihan Ketua Himpunan Mahasiswa Manajemen. Menunggu kelengkapan berkas visi-misi calon paslon.',
-    level: 'Jurusan Manajemen',
-    icon: 'drive_file_rename_outline',
-    status: 'Draft',
-    startDate: '',
-    endDate: '',
-    candidates: 1,
-    candidateLabel: 'Paslon Masuk Verifikasi',
-    dptTarget: 0,
-    dptVoted: 0,
-    turnout: 0,
-    info: 'Menunggu kelengkapan berkas visi-misi calon paslon',
-    createdAt: '2025-02-10T11:00'
-  },
-  {
-    id: 'PEM-2024-09',
-    name: 'Musyawarah Mahasiswa BEM Fakultas Hukum 2024/2025',
-    description: 'Pemilihan BEM Fakultas Hukum yang telah selesai diselenggarakan.',
-    level: 'Fakultas Hukum',
-    icon: 'gavel',
-    status: 'Selesai',
-    startDate: '2025-01-13T08:00',
-    endDate: '2025-01-15T17:00',
-    candidates: 2,
-    candidateLabel: 'Paslon',
-    dptTarget: 1210,
-    dptVoted: 1140,
-    turnout: 94.2,
-    info: 'Hasil rekapitulasi resmi telah ditandatangani KPU Kampus',
-    createdAt: '2024-12-20T08:00'
-  },
-  {
-    id: 'PEM-2025-05',
-    name: 'Pemilihan Ketua BEM Fakultas Ekonomika & Bisnis',
-    description: 'Pemilihan Ketua BEM FEB untuk periode 2025/2026.',
-    level: 'Fakultas Ekonomika & Bisnis',
-    icon: 'account_balance_wallet',
-    status: 'Berlangsung',
-    startDate: '2025-02-25T08:00',
-    endDate: '2025-02-27T17:00',
-    candidates: 4,
-    candidateLabel: 'Pasangan Calon',
-    dptTarget: 1850,
-    dptVoted: 1420,
-    turnout: 76.8,
-    info: '',
-    createdAt: '2025-01-18T10:00'
-  },
-  {
-    id: 'PEM-2025-06',
-    name: 'Pemilihan Ketua Himpunan Mahasiswa Akuntansi (HMA)',
-    description: 'Draft pemilihan ketua HMA, berkas masih dalam tahap verifikasi.',
-    level: 'Jurusan Akuntansi',
-    icon: 'calculate',
-    status: 'Draft',
-    startDate: '',
-    endDate: '',
-    candidates: 0,
-    candidateLabel: 'Calon',
-    dptTarget: 0,
-    dptVoted: 0,
-    turnout: 0,
-    info: 'Berkas pendaftaran calon belum lengkap',
-    createdAt: '2025-02-15T13:00'
-  },
-  {
-    id: 'PEM-2025-07',
-    name: 'Pemilihan Ketua Himpunan Mahasiswa Sipil (HMS)',
-    description: 'Pemilihan Ketua HMS yang telah dijadwalkan dan menunggu waktu pelaksanaan.',
-    level: 'Jurusan Teknik Sipil',
-    icon: 'construction',
-    status: 'Terjadwal',
-    startDate: '2025-03-10T08:00',
-    endDate: '2025-03-12T17:00',
-    candidates: 3,
-    candidateLabel: 'Calon Ketua',
-    dptTarget: 650,
-    dptVoted: 0,
-    turnout: 0,
-    info: '',
-    createdAt: '2025-02-05T09:00'
-  },
-  {
-    id: 'PEM-2024-10',
-    name: 'Pemilihan Ketua Senat Mahasiswa 2024',
-    description: 'Pemilihan Ketua Senat Mahasiswa yang telah selesai.',
-    level: 'Universitas (BEM KM)',
-    icon: 'groups',
-    status: 'Selesai',
-    startDate: '2024-12-01T08:00',
-    endDate: '2024-12-03T17:00',
-    candidates: 2,
-    candidateLabel: 'Paslon',
-    dptTarget: 3200,
-    dptVoted: 2880,
-    turnout: 90.0,
-    info: 'Hasil rekapitulasi resmi telah diarsipkan',
-    createdAt: '2024-11-10T08:00'
-  },
-  {
-    id: 'PEM-2024-11',
-    name: 'Musyawarah Mahasiswa Fakultas Teknik 2024',
-    description: 'Pemilihan pengurus BEM FT yang telah selesai diselenggarakan.',
-    level: 'Fakultas Teknik',
-    icon: 'precision_manufacturing',
-    status: 'Selesai',
-    startDate: '2024-11-20T08:00',
-    endDate: '2024-11-22T17:00',
-    candidates: 3,
-    candidateLabel: 'Paslon',
-    dptTarget: 1980,
-    dptVoted: 1750,
-    turnout: 88.4,
-    info: 'Hasil rekapitulasi resmi telah diarsipkan',
-    createdAt: '2024-11-01T08:00'
-  },
-  {
-    id: 'PEM-2025-08',
-    name: 'Pemilihan Ketua Himpunan Mahasiswa Elektro (HME)',
-    description: 'Draft persiapan pemilihan ketua HME.',
-    level: 'Jurusan Teknik Elektro',
-    icon: 'bolt',
-    status: 'Draft',
-    startDate: '',
-    endDate: '',
-    candidates: 0,
-    candidateLabel: 'Calon',
-    dptTarget: 0,
-    dptVoted: 0,
-    turnout: 0,
-    info: 'Tahap penentuan kuota DPT',
-    createdAt: '2025-02-18T14:00'
-  },
-  {
-    id: 'PEM-2025-09',
-    name: 'Pemilihan Ketua Himpunan Mahasiswa Arsitektur (HMA)',
-    description: 'Draft persiapan pemilihan ketua HMA.',
-    level: 'Jurusan Arsitektur',
-    icon: 'architecture',
-    status: 'Draft',
-    startDate: '',
-    endDate: '',
-    candidates: 0,
-    candidateLabel: 'Calon',
-    dptTarget: 0,
-    dptVoted: 0,
-    turnout: 0,
-    info: 'Menunggu SK Panitia',
-    createdAt: '2025-02-20T10:00'
-  }
-])
-
-// ─── Next ID Counter ────────────────────────────────────────────────
-let nextIdCounter = 10
-
-function generateId(): string {
-  nextIdCounter++
-  return `PEM-2025-${String(nextIdCounter).padStart(2, '0')}`
 }
 
 // ─── Search & Filter State ──────────────────────────────────────────
@@ -348,11 +157,20 @@ function validateAddForm(): boolean {
   const errors: Record<string, string> = {}
   if (!addForm.value.name.trim()) errors.name = 'Nama pemilihan wajib diisi.'
   if (!addForm.value.level.trim()) errors.level = 'Tingkat pemilihan wajib diisi.'
-  if (addForm.value.startDate && addForm.value.endDate) {
-    if (new Date(addForm.value.endDate) <= new Date(addForm.value.startDate)) {
-      errors.endDate = 'Tanggal selesai harus setelah tanggal mulai.'
+
+  if (addForm.value.startDate || addForm.value.endDate) {
+    if (addForm.value.startDate && !addForm.value.endDate) {
+      errors.endDate = 'Tanggal selesai wajib diisi jika tanggal mulai ditentukan.'
+    } else if (!addForm.value.startDate && addForm.value.endDate) {
+      errors.startDate = 'Tanggal mulai wajib diisi jika tanggal selesai ditentukan.'
+    } else if (addForm.value.startDate && addForm.value.endDate) {
+      const scheduleVal = validateElectionSchedule('Terjadwal', addForm.value.startDate, addForm.value.endDate)
+      if (!scheduleVal.valid) {
+        Object.assign(errors, scheduleVal.errors)
+      }
     }
   }
+
   addErrors.value = errors
   return Object.keys(errors).length === 0
 }
@@ -361,8 +179,7 @@ function submitAddForm() {
   if (!validateAddForm()) return
 
   const hasSchedule = addForm.value.startDate && addForm.value.endDate
-  const newElection: Election = {
-    id: generateId(),
+  const newEl = addElection({
     name: addForm.value.name.trim(),
     description: addForm.value.description.trim(),
     level: addForm.value.level.trim(),
@@ -375,11 +192,10 @@ function submitAddForm() {
     dptTarget: 0,
     dptVoted: 0,
     turnout: 0,
-    info: hasSchedule ? '' : 'Persiapan awal, berkas belum dilengkapi',
-    createdAt: new Date().toISOString()
-  }
+    info: hasSchedule ? '' : 'Persiapan awal, berkas belum dilengkapi'
+  })
 
-  elections.value.unshift(newElection)
+  triggerToast(`Pemilihan "${newEl.name}" berhasil dibuat.`)
   showAddModal.value = false
 }
 
@@ -394,18 +210,20 @@ function openDetailModal(election: Election) {
 
 // ─── Modal State: Edit ──────────────────────────────────────────────
 const showEditModal = ref(false)
+const originalStatus = ref<ElectionStatus>('Draft')
 const editForm = ref({
   id: '',
   name: '',
   description: '',
   level: '',
-  status: '' as Election['status'],
+  status: '' as ElectionStatus,
   startDate: '',
   endDate: ''
 })
 const editErrors = ref<Record<string, string>>({})
 
 function openEditModal(election: Election) {
+  originalStatus.value = election.status
   editForm.value = {
     id: election.id,
     name: election.name,
@@ -419,10 +237,8 @@ function openEditModal(election: Election) {
   showEditModal.value = true
 }
 
-function getEditableStatuses(currentStatus: Election['status']): string[] {
-  // Always include current status + allowed transitions
-  const transitions = allowedTransitions[currentStatus] || []
-  return [currentStatus, ...transitions]
+function getEditableStatuses(currentStatus: ElectionStatus): ElectionStatus[] {
+  return getAvailableTransitions(originalStatus.value)
 }
 
 function validateEditForm(): boolean {
@@ -430,16 +246,19 @@ function validateEditForm(): boolean {
   if (!editForm.value.name.trim()) errors.name = 'Nama pemilihan wajib diisi.'
   if (!editForm.value.level.trim()) errors.level = 'Tingkat pemilihan wajib diisi.'
 
-  // If status requires schedule
-  if (editForm.value.status === 'Terjadwal' || editForm.value.status === 'Berlangsung') {
-    if (!editForm.value.startDate) errors.startDate = 'Tanggal mulai wajib diisi untuk status ini.'
-    if (!editForm.value.endDate) errors.endDate = 'Tanggal selesai wajib diisi untuk status ini.'
+  // Validate status transition
+  const current = elections.value.find(e => e.id === editForm.value.id)
+  if (current && editForm.value.status !== current.status) {
+    if (!canTransitionStatus(current.status, editForm.value.status)) {
+      const allowed = allowedTransitions[current.status].join(', ') || 'tidak ada'
+      errors.status = `Transisi status tidak valid: dari "${current.status}" ke "${editForm.value.status}". Transisi yang diizinkan: ${allowed}.`
+    }
   }
 
-  if (editForm.value.startDate && editForm.value.endDate) {
-    if (new Date(editForm.value.endDate) <= new Date(editForm.value.startDate)) {
-      errors.endDate = 'Tanggal selesai harus setelah tanggal mulai.'
-    }
+  // Validate schedule
+  const scheduleVal = validateElectionSchedule(editForm.value.status, editForm.value.startDate, editForm.value.endDate)
+  if (!scheduleVal.valid) {
+    Object.assign(errors, scheduleVal.errors)
   }
 
   editErrors.value = errors
@@ -449,19 +268,21 @@ function validateEditForm(): boolean {
 function submitEditForm() {
   if (!validateEditForm()) return
 
-  const idx = elections.value.findIndex(e => e.id === editForm.value.id)
-  if (idx === -1) return
-
-  elections.value[idx] = {
-    ...elections.value[idx],
+  const res = updateElection(editForm.value.id, {
     name: editForm.value.name.trim(),
     description: editForm.value.description.trim(),
     level: editForm.value.level.trim(),
     status: editForm.value.status,
     startDate: editForm.value.startDate || '',
     endDate: editForm.value.endDate || ''
+  })
+
+  if (!res.success) {
+    editErrors.value.status = res.message
+    return
   }
 
+  triggerToast(res.message)
   showEditModal.value = false
 }
 
@@ -495,8 +316,8 @@ function confirmDeleteDraft(election: Election) {
     'Hapus Draft Pemilihan',
     `Apakah Anda yakin ingin menghapus draft "${election.name}"? Tindakan ini tidak dapat dibatalkan.`,
     () => {
-      const idx = elections.value.findIndex(e => e.id === election.id)
-      if (idx !== -1) elections.value.splice(idx, 1)
+      const res = deleteElection(election.id)
+      triggerToast(res.message)
     }
   )
 }
@@ -701,9 +522,42 @@ function confirmDeleteDraft(election: Election) {
                   <div class="flex flex-wrap items-center gap-2">
                     <span class="font-mono text-[10px] px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 font-semibold">#{{ election.id }}</span>
                     <span class="text-xs text-slate-500 font-medium">• Tingkat: {{ election.level }}</span>
+                    <!-- Active Election Badge -->
+                    <span
+                      v-if="isActiveElection(election.id)"
+                      class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-[#582be8] border border-purple-200 shadow-xs"
+                      title="Pemilihan ini aktif ditampilkan pada portal pemilih"
+                    >
+                      <span class="material-symbols-outlined text-[12px]">how_to_vote</span>
+                      Aktif di Pemilih
+                    </span>
+                    <!-- Active Toggle Button -->
+                    <button
+                      v-if="isActiveElection(election.id)"
+                      @click="handleSetActiveElection(null)"
+                      class="text-[10px] text-slate-500 hover:text-red-600 underline font-medium transition cursor-pointer"
+                      title="Lepas penetapan pemilihan aktif"
+                    >
+                      (Lepas Aktif)
+                    </button>
+                    <button
+                      v-else-if="election.status !== 'Selesai'"
+                      @click="handleSetActiveElection(election.id)"
+                      class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium text-slate-600 bg-slate-100 hover:bg-purple-50 hover:text-[#582be8] hover:border-purple-200 border border-transparent transition cursor-pointer"
+                      title="Tetapkan pemilihan ini sebagai pemilihan aktif untuk pemilih"
+                    >
+                      <span class="material-symbols-outlined text-[12px]">check_box_outline_blank</span>
+                      Set Aktif
+                    </button>
                   </div>
-                  <h3 class="text-base sm:text-lg text-slate-900 font-bold">
-                    {{ election.name }}
+                  <h3 class="text-base sm:text-lg font-bold">
+                    <NuxtLink
+                      :to="`/admin/elections/${election.id}`"
+                      class="text-slate-900 hover:text-[#582be8] transition inline-flex items-center gap-1.5 group"
+                    >
+                      <span>{{ election.name }}</span>
+                      <span class="material-symbols-outlined text-[16px] text-slate-400 group-hover:text-[#582be8] transition">arrow_outward</span>
+                    </NuxtLink>
                   </h3>
                   <div class="flex flex-wrap items-center gap-4 text-slate-500 text-xs pt-1">
                     <!-- Date Info -->
@@ -816,20 +670,27 @@ function confirmDeleteDraft(election: Election) {
                 <span class="text-slate-500">DPT Terdaftar: <strong class="text-slate-900 font-semibold">{{ election.dptTarget > 0 ? election.dptTarget.toLocaleString() + ' Mahasiswa Aktif' : 'Belum ditentukan' }}</strong></span>
                 <span class="text-slate-500">Status Bilik: <span class="text-emerald-700 font-semibold">Terkunci (Auto-Start)</span></span>
               </div>
-              <div class="flex items-center gap-2.5 shrink-0">
+              <div class="flex items-center gap-2.5 shrink-0 flex-wrap">
+                <NuxtLink
+                  :to="`/admin/elections/${election.id}`"
+                  class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#582be8] text-white text-xs font-semibold rounded-xl hover:bg-[#471ec7] shadow-sm shadow-purple-600/20 transition"
+                >
+                  <span class="material-symbols-outlined text-[16px]">query_stats</span>
+                  Kelola & Monitoring
+                </NuxtLink>
                 <button
                   @click="openDetailModal(election)"
-                  class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl hover:bg-slate-50 shadow-sm transition"
+                  class="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl hover:bg-slate-50 shadow-sm transition"
                 >
                   <span class="material-symbols-outlined text-[16px]">visibility</span>
-                  Lihat Detail
+                  Ringkasan
                 </button>
                 <button
                   @click="openEditModal(election)"
-                  class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#582be8] text-white text-xs font-semibold rounded-xl hover:bg-[#471ec7] shadow-sm shadow-purple-600/20 transition"
+                  class="p-2 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-50 shadow-sm transition"
+                  title="Edit Paslon & Aturan"
                 >
-                  <span class="material-symbols-outlined text-[16px]">edit</span>
-                  Edit Paslon & Aturan
+                  <span class="material-symbols-outlined text-[18px]">edit</span>
                 </button>
               </div>
             </div>
@@ -839,7 +700,14 @@ function confirmDeleteDraft(election: Election) {
               <div class="flex items-center gap-4 text-xs text-slate-500">
                 <span>Status DPT: <span class="text-amber-700 font-medium">Belum di-generate</span></span>
               </div>
-              <div class="flex items-center gap-2.5 shrink-0">
+              <div class="flex items-center gap-2.5 shrink-0 flex-wrap">
+                <NuxtLink
+                  :to="`/admin/elections/${election.id}`"
+                  class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-purple-50 text-[#582be8] border border-purple-200 text-xs font-semibold rounded-xl hover:bg-purple-100 transition"
+                >
+                  <span class="material-symbols-outlined text-[16px]">query_stats</span>
+                  Kelola Draft
+                </NuxtLink>
                 <button
                   @click="confirmDeleteDraft(election)"
                   class="inline-flex items-center gap-1.5 px-3.5 py-2 text-red-600 hover:bg-red-50 text-xs font-semibold border border-red-200 rounded-xl transition"
@@ -852,7 +720,7 @@ function confirmDeleteDraft(election: Election) {
                   class="inline-flex items-center gap-1.5 px-4 py-2 bg-[#582be8] text-white text-xs font-semibold rounded-xl hover:bg-[#471ec7] shadow-sm shadow-purple-600/20 transition"
                 >
                   <span class="material-symbols-outlined text-[16px]">arrow_forward</span>
-                  Lanjutkan Setup Draft
+                  Lanjutkan Setup
                 </button>
               </div>
             </div>
@@ -863,7 +731,14 @@ function confirmDeleteDraft(election: Election) {
                 <span class="w-2 h-2 rounded-full bg-indigo-500"></span>
                 <span>{{ election.info || 'Hasil rekapitulasi resmi telah diarsipkan' }}</span>
               </div>
-              <div class="flex items-center gap-2.5 shrink-0">
+              <div class="flex items-center gap-2.5 shrink-0 flex-wrap">
+                <NuxtLink
+                  :to="`/admin/elections/${election.id}`"
+                  class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-purple-50 text-[#582be8] border border-purple-200 text-xs font-semibold rounded-xl hover:bg-purple-100 transition"
+                >
+                  <span class="material-symbols-outlined text-[16px]">query_stats</span>
+                  Kelola & Monitoring
+                </NuxtLink>
                 <button
                   @click="openDetailModal(election)"
                   class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl hover:bg-slate-50 shadow-sm transition"
@@ -1218,19 +1093,28 @@ function confirmDeleteDraft(election: Election) {
             </div>
 
             <!-- Footer -->
-            <div class="sticky bottom-0 bg-white border-t border-slate-100 px-6 py-4 rounded-b-2xl flex items-center justify-end gap-3 z-10">
-              <button
-                @click="showDetailModal = false"
-                class="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition"
+            <div class="sticky bottom-0 bg-white border-t border-slate-100 px-6 py-4 rounded-b-2xl flex items-center justify-between gap-3 z-10 flex-wrap">
+              <NuxtLink
+                :to="`/admin/elections/${detailElection.id}`"
+                class="px-4 py-2 text-xs font-semibold text-[#582be8] bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-xl transition inline-flex items-center gap-1.5"
               >
-                Tutup
-              </button>
-              <button
-                @click="showDetailModal = false; openEditModal(detailElection!)"
-                class="px-5 py-2 text-xs font-semibold text-white bg-[#582be8] hover:bg-[#471ec7] rounded-xl shadow-md shadow-purple-600/25 transition"
-              >
-                Edit Pemilihan
-              </button>
+                <span class="material-symbols-outlined text-[16px]">query_stats</span>
+                Kelola & Monitoring Penuh
+              </NuxtLink>
+              <div class="flex items-center gap-2">
+                <button
+                  @click="showDetailModal = false"
+                  class="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition"
+                >
+                  Tutup
+                </button>
+                <button
+                  @click="showDetailModal = false; openEditModal(detailElection!)"
+                  class="px-5 py-2 text-xs font-semibold text-white bg-[#582be8] hover:bg-[#471ec7] rounded-xl shadow-md shadow-purple-600/25 transition"
+                >
+                  Edit Pemilihan
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1307,7 +1191,8 @@ function confirmDeleteDraft(election: Election) {
                 <label class="block text-xs font-semibold text-slate-700 mb-1.5">Status</label>
                 <select
                   v-model="editForm.status"
-                  class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-[#582be8] focus:bg-white transition cursor-pointer"
+                  class="w-full px-3.5 py-2.5 bg-slate-50 border rounded-xl text-sm text-slate-900 focus:outline-none focus:border-[#582be8] focus:bg-white transition cursor-pointer"
+                  :class="editErrors.status ? 'border-red-300' : 'border-slate-200'"
                 >
                   <option
                     v-for="s in getEditableStatuses(editForm.status)"
@@ -1317,8 +1202,9 @@ function confirmDeleteDraft(election: Election) {
                     {{ s }}
                   </option>
                 </select>
-                <p class="text-[11px] text-slate-400 mt-1">
-                  Transisi status yang tersedia bergantung pada status saat ini.
+                <p v-if="editErrors.status" class="text-[11px] text-red-500 mt-1">{{ editErrors.status }}</p>
+                <p v-else class="text-[11px] text-slate-400 mt-1">
+                  Transisi status yang tersedia dibatasi sesuai siklus alur pemilu (Draft &rarr; Terjadwal &rarr; Berlangsung &rarr; Selesai).
                 </p>
               </div>
 
@@ -1399,6 +1285,24 @@ function confirmDeleteDraft(election: Election) {
               </button>
             </div>
           </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         TOAST NOTIFICATION
+    ════════════════════════════════════════════════════════════════ -->
+    <Teleport to="body">
+      <Transition name="modal-fade">
+        <div
+          v-if="showToast"
+          class="fixed bottom-6 right-6 z-50 max-w-sm bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-slate-700 text-xs"
+        >
+          <span class="material-symbols-outlined text-emerald-400 text-[20px] shrink-0">check_circle</span>
+          <span class="flex-1 leading-snug">{{ toastMessage }}</span>
+          <button @click="showToast = false" class="text-slate-400 hover:text-white shrink-0">
+            <span class="material-symbols-outlined text-[16px]">close</span>
+          </button>
         </div>
       </Transition>
     </Teleport>

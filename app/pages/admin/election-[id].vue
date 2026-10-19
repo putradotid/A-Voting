@@ -8,349 +8,88 @@ definePageMeta({
 const route = useRoute()
 const router = useRouter()
 
-// ─── Interfaces ──────────────────────────────────────────────────────
+// ─── Interfaces & Composables ────────────────────────────────────────
 import type {
   ElectionCandidate,
   CandidateType,
   CandidateVerificationStatus
 } from '~/composables/useElectionCandidates'
+import type { Election, ElectionDetail, ElectionStatus } from '~/composables/useElections'
+import {
+  useElections,
+  allowedTransitions,
+  canTransitionStatus,
+  getAvailableTransitions,
+  validateElectionSchedule,
+  formatDatetimeLocal
+} from '~/composables/useElections'
 
-interface ElectionDetail {
-  id: string
-  name: string
-  description: string
-  organization: string
-  position: string
-  period: string
-  level: string
-  icon: string
-  status: 'Berlangsung' | 'Terjadwal' | 'Draft' | 'Selesai'
-  startDate: string
-  endDate: string
-  dptTarget: number
-  dptVoted: number
-  turnout: number
-  info: string
-  quorumPercentage: number
-  candidatesCount: number
-  candidates?: ElectionCandidate[]
-}
+const {
+  getElectionById,
+  updateElection,
+  deleteElection,
+  isActiveElection,
+  setActiveElection
+} = useElections()
 
-// ─── Master Mock Dataset ─────────────────────────────────────────────
-const electionsDatabase: Record<string, ElectionDetail> = {
-  'PEM-2025-01': {
-    id: 'PEM-2025-01',
-    name: 'Pemilihan Raya Ketua & Wakil Ketua BEM 2025',
-    description: 'Pemilihan umum raya mahasiswa untuk menentukan Presiden Mahasiswa dan Wakil Presiden Mahasiswa Badan Eksekutif Mahasiswa (BEM KM) periode 2025/2026. Bilik suara digital terenkripsi dengan audit node konsensus real-time.',
-    organization: 'Badan Eksekutif Mahasiswa (BEM KM)',
-    position: 'Ketua & Wakil Ketua BEM',
-    period: '2025/2026',
-    level: 'Universitas (BEM KM)',
-    icon: 'account_balance',
-    status: 'Berlangsung',
-    startDate: '2025-02-26T08:00',
-    endDate: '2025-02-28T17:00',
-    dptTarget: 2740,
-    dptVoted: 2150,
-    turnout: 78.4,
-    quorumPercentage: 50,
-    candidatesCount: 3,
-    info: 'Bilik suara dibuka serentak di 8 fakultas. Verifikasi token NIM berjalan normal.',
-    candidates: [
-      {
-        id: 'c-01',
-        number: '01',
-        name: 'Farhan & Nabila',
-        leadCandidate: {
-          name: 'Muhammad Farhan',
-          nim: '2108101012',
-          faculty: 'Fakultas Teknik',
-          major: 'S1 Teknik Informatika'
-        },
-        viceCandidate: {
-          name: 'Nabila Putri',
-          nim: '2102102045',
-          faculty: 'Fakultas Ekonomika & Bisnis',
-          major: 'S1 Akuntansi'
-        },
-        tagline: '“Sinergi Nyata, Berdampak Bersama”',
-        status: 'Terverifikasi KPU',
-        coalition: 'BEM FT - FEB Bersatu',
-        photo: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
-        color: '#582be8',
-        pillars: [
-          'Digitalisasi Satu Pintu Ormawa Kampus',
-          'Layanan Advokasi UKT Tanggap 24/7',
-          'Pemerataan Akses Dana Hibah Riset Mahasiswa'
-        ]
-      },
-      {
-        id: 'c-02',
-        number: '02',
-        name: 'Ahmad & Dimas',
-        leadCandidate: {
-          name: 'Ahmad Rizky Pratama',
-          nim: '2101103022',
-          faculty: 'Fakultas Hukum',
-          major: 'S1 Ilmu Hukum'
-        },
-        viceCandidate: {
-          name: 'Dimas Prasetyo',
-          nim: '2104104088',
-          faculty: 'Fakultas Ilmu Sosial & Politik',
-          major: 'S1 Hubungan Internasional'
-        },
-        tagline: '“Integritas Kampus, Mahasiswa Berdaulat”',
-        status: 'Terverifikasi KPU',
-        coalition: 'Koalisi Reformasi FH-FISIP',
-        photo: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80',
-        color: '#2563eb',
-        pillars: [
-          'Transparansi Anggaran BEM Terbuka ke Publik',
-          'Pusat Bantuan Hukum & Satgas Anti Kekerasan',
-          'Kanal Kolaborasi Startup & Inkubasi Bisnis'
-        ]
-      },
-      {
-        id: 'c-03',
-        number: '03',
-        name: 'Siti & Kevin',
-        leadCandidate: {
-          name: 'Siti Aisyah Rahma',
-          nim: '2103105011',
-          faculty: 'Fakultas Kedokteran',
-          major: 'S1 Pendidikan Dokter'
-        },
-        viceCandidate: {
-          name: 'Kevin Pratama',
-          nim: '2105106090',
-          faculty: 'Fakultas Psikologi',
-          major: 'S1 Psikologi'
-        },
-        tagline: '“Kesehatan Mental & Prestasi Unggul Mahasiswa”',
-        status: 'Terverifikasi KPU',
-        coalition: 'Poros Harmoni FK-Psikologi',
-        photo: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=400&q=80',
-        color: '#059669',
-        pillars: [
-          'Klinik Konseling Mental Health Gratis',
-          'Pekan Olahraga & Seni Kampus Terintegrasi',
-          'Akselerasi Pertukaran Mahasiswa Luar Negeri'
-        ]
-      }
-    ]
-  },
-  'PEM-2025-02': {
-    id: 'PEM-2025-02',
-    name: 'Dewan Perwakilan Mahasiswa (DPM) Fakultas Teknik 2025',
-    description: 'Pemilihan anggota legislatif Dewan Perwakilan Mahasiswa Fakultas Teknik untuk mengawal fungsi anggaran, legislasi, dan pengawasan BEM FT periode 2025/2026.',
-    organization: 'DPM Fakultas Teknik',
-    position: 'Anggota Dewan Perwakilan Mahasiswa FT',
-    period: '2025/2026',
-    level: 'Fakultas Teknik',
-    icon: 'engineering',
-    status: 'Berlangsung',
-    startDate: '2025-02-27T09:00',
-    endDate: '2025-03-01T20:00',
-    dptTarget: 2028,
-    dptVoted: 1270,
-    turnout: 62.6,
-    quorumPercentage: 50,
-    candidatesCount: 5,
-    info: 'Partisipasi tertinggi dicatat oleh Departemen Teknik Informatika dan Sipil.',
-    candidates: [
-      {
-        id: 'c-dpm-1',
-        number: '01',
-        name: 'Bagus Wicaksono',
-        leadCandidate: { name: 'Bagus Wicaksono', nim: '2208101050', faculty: 'Fakultas Teknik', major: 'Teknik Elektro' },
-        tagline: '“Aspiratif, Kritis, dan Berdedikasi”',
-        status: 'Terverifikasi KPU',
-        coalition: 'Independen Elektro',
-        photo: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80',
-        color: '#7c3aed',
-        pillars: ['Audit Fasilitas Laboratorium FT', 'Penguatan Perda Ormawa FT']
-      },
-      {
-        id: 'c-dpm-2',
-        number: '02',
-        name: 'Rian Syahputra',
-        leadCandidate: { name: 'Rian Syahputra', nim: '2208102031', faculty: 'Fakultas Teknik', major: 'Teknik Mesin' },
-        tagline: '“Suara Mesin untuk Keadilan Mahasiswa”',
-        status: 'Terverifikasi KPU',
-        coalition: 'Independen Mesin',
-        photo: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=400&q=80',
-        color: '#ea580c',
-        pillars: ['Kawal Alokasi Dana Riset Bengkel', 'Forum Aspirasi Bulanan Terbuka']
-      }
-    ]
-  },
-  'PEM-2025-03': {
-    id: 'PEM-2025-03',
-    name: 'Pemilihan Ketua Himpunan Mahasiswa Informatika (HMIF)',
-    description: 'Pemilihan Ketua dan Wakil Ketua Himpunan Mahasiswa Informatika periode 2025/2026. Persiapan teknis bilik suara dan penetapan nomor urut calon telah selesai.',
-    organization: 'Himpunan Mahasiswa Informatika (HMIF)',
-    position: 'Ketua & Wakil Ketua HMIF',
-    period: '2025/2026',
-    level: 'Jurusan Informatika',
-    icon: 'terminal',
-    status: 'Terjadwal',
-    startDate: '2025-03-05T08:00',
-    endDate: '2025-03-07T17:00',
-    dptTarget: 820,
-    dptVoted: 0,
-    turnout: 0,
-    quorumPercentage: 55,
-    candidatesCount: 2,
-    info: 'Bilik suara terkunci secara otomatis hingga waktu mulai 5 Maret 2025.',
-    candidates: [
-      {
-        id: 'c-hmif-1',
-        number: '01',
-        name: 'Aditya & Ryan',
-        leadCandidate: { name: 'Aditya Nugraha', nim: '2208101015', faculty: 'Fakultas Teknik', major: 'Informatika' },
-        viceCandidate: { name: 'Ryan Saputra', nim: '2208101044', faculty: 'Fakultas Teknik', major: 'Sistem Informasi' },
-        tagline: '“Code The Future, Lead The Innovators”',
-        status: 'Terverifikasi KPU',
-        coalition: 'Dev Alliance',
-        photo: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=400&q=80',
-        color: '#0284c7',
-        pillars: ['Inkubasi Hackathon Nasional', 'Mentoring Karir Big Tech']
-      }
-    ]
-  },
-  'PEM-2025-04': {
-    id: 'PEM-2025-04',
-    name: 'Pemilihan Ketua Himpunan Mahasiswa Manajemen (HMM)',
-    description: 'Pemilihan Ketua Himpunan Mahasiswa Manajemen periode 2025/2026. Status saat ini masih dalam draft pendaftaran paslon dan validasi berkas.',
-    organization: 'Himpunan Mahasiswa Manajemen (HMM)',
-    position: 'Ketua & Wakil Ketua HMM',
-    period: '2025/2026',
-    level: 'Jurusan Manajemen',
-    icon: 'drive_file_rename_outline',
-    status: 'Draft',
-    startDate: '',
-    endDate: '',
-    dptTarget: 0,
-    dptVoted: 0,
-    turnout: 0,
-    quorumPercentage: 50,
-    candidatesCount: 1,
-    info: 'Menunggu kelengkapan berkas visi-misi calon paslon.',
-    candidates: []
-  },
-  'PEM-2024-09': {
-    id: 'PEM-2024-09',
-    name: 'Musyawarah Mahasiswa BEM Fakultas Hukum 2024/2025',
-    description: 'Pemilihan pengurus BEM Fakultas Hukum yang telah selesai diselenggarakan dan hasil perolehan suaranya telah disahkan.',
-    organization: 'BEM Fakultas Hukum',
-    position: 'Gubernur & Wakil Gubernur BEM FH',
-    period: '2024/2025',
-    level: 'Fakultas Hukum',
-    icon: 'gavel',
-    status: 'Selesai',
-    startDate: '2025-01-13T08:00',
-    endDate: '2025-01-15T17:00',
-    dptTarget: 1210,
-    dptVoted: 1140,
-    turnout: 94.2,
-    quorumPercentage: 50,
-    candidatesCount: 2,
-    info: 'Hasil rekapitulasi resmi telah ditandatangani KPU Kampus dan terarsip aman.',
-    candidates: []
-  },
-  'PEM-2025-05': {
-    id: 'PEM-2025-05',
-    name: 'Pemilihan Ketua BEM Fakultas Ekonomika & Bisnis',
-    description: 'Pemilihan Ketua dan Wakil Ketua BEM FEB untuk masa bakti 2025/2026.',
-    organization: 'BEM Fakultas Ekonomika & Bisnis',
-    position: 'Ketua & Wakil Ketua BEM FEB',
-    period: '2025/2026',
-    level: 'Fakultas Ekonomika & Bisnis',
-    icon: 'account_balance_wallet',
-    status: 'Berlangsung',
-    startDate: '2025-02-25T08:00',
-    endDate: '2025-02-27T17:00',
-    dptTarget: 1850,
-    dptVoted: 1420,
-    turnout: 76.8,
-    quorumPercentage: 50,
-    candidatesCount: 4,
-    info: 'Pemungutan suara berlangsung kondusif di seluruh bilik lab komputer FEB.',
-    candidates: []
-  }
+function handleSetActiveElection(id: string | null) {
+  const res = setActiveElection(id)
+  triggerToast(res.message)
 }
 
 // ─── Current Election State ──────────────────────────────────────────
-const rawId = computed(() => String(route.params.id || 'PEM-2025-01'))
-
-function buildFallbackElection(id: string): ElectionDetail {
-  return {
-    id,
-    name: `Pemilihan Mahasiswa (${id})`,
-    description: `Agenda pemilihan resmi ${id} di lingkungan universitas. Data operasional, paslon, dan pemilih dikelola melalui panel kontrol ini.`,
-    organization: 'Komisi Pemilihan Umum Mahasiswa',
-    position: 'Ketua & Formatur Organisasi',
-    period: '2025/2026',
-    level: 'Tingkat Kampus',
-    icon: 'ballot',
-    status: 'Berlangsung',
-    startDate: '2025-02-26T08:00',
-    endDate: '2025-02-28T17:00',
-    dptTarget: 2500,
-    dptVoted: 1800,
-    turnout: 72.0,
-    quorumPercentage: 50,
-    candidatesCount: 2,
-    info: 'Pemilihan aktif dalam sistem A-Voting.',
-    candidates: []
-  }
-}
-
-const currentElection = ref<ElectionDetail>(
-  electionsDatabase[rawId.value] ? JSON.parse(JSON.stringify(electionsDatabase[rawId.value])) : buildFallbackElection(rawId.value)
-)
-
-// Watch route param if user navigates between elections
-watch(
-  () => route.params.id,
-  (newId) => {
-    if (newId && typeof newId === 'string') {
-      currentElection.value = electionsDatabase[newId]
-        ? JSON.parse(JSON.stringify(electionsDatabase[newId]))
-        : buildFallbackElection(newId)
-    }
-  }
-)
+const rawId = computed(() => String(route.params.id || ''))
+const currentElection = computed(() => getElectionById(rawId.value))
 
 // ─── Navigation Tabs ─────────────────────────────────────────────────
 type TabKey = 'ringkasan' | 'kandidat' | 'pemilih' | 'monitoring' | 'pengaturan'
 
-const tabs: { key: TabKey; label: string; icon: string; count?: string | number }[] = [
-  { key: 'ringkasan', label: 'Ringkasan', icon: 'dashboard' },
-  { key: 'kandidat', label: 'Kandidat', icon: 'groups', count: computed(() => currentElectionCandidates.value.length) },
-  { key: 'pemilih', label: 'Pemilih (DPT)', icon: 'how_to_reg', count: computed(() => currentElection.value.dptTarget ? currentElection.value.dptTarget.toLocaleString() : undefined) },
-  { key: 'monitoring', label: 'Monitoring Suara', icon: 'monitoring' },
-  { key: 'pengaturan', label: 'Pengaturan & Aturan', icon: 'settings' }
-]
-
 const activeTab = ref<TabKey>('ringkasan')
 
-// Sync with query param if present
-onMounted(() => {
-  const queryTab = route.query.tab as TabKey
-  if (queryTab && ['ringkasan', 'kandidat', 'pemilih', 'monitoring', 'pengaturan'].includes(queryTab)) {
-    activeTab.value = queryTab
+// Sync with query param initially
+const initQueryTab = route.query.tab as TabKey
+if (initQueryTab && ['ringkasan', 'kandidat', 'pemilih', 'monitoring', 'pengaturan'].includes(initQueryTab)) {
+  activeTab.value = initQueryTab
+}
+
+// Keep activeTab in sync with browser URL changes (e.g. back/forward navigation)
+watch(
+  () => route.query.tab,
+  (newTab) => {
+    if (newTab && ['ringkasan', 'kandidat', 'pemilih', 'monitoring', 'pengaturan'].includes(newTab as string)) {
+      if (activeTab.value !== newTab) {
+        activeTab.value = newTab as TabKey
+      }
+    }
   }
-})
+)
 
 function switchTab(key: TabKey) {
   activeTab.value = key
-  router.replace({ query: { ...route.query, tab: key } })
+  if (route.query.tab !== key) {
+    router.replace({ query: { ...route.query, tab: key } }).catch(() => {})
+  }
 }
+
+const tabs = computed<{ key: TabKey; label: string; icon: string; count?: string | number }[]>(() => [
+  { key: 'ringkasan', label: 'Ringkasan', icon: 'dashboard' },
+  { key: 'kandidat', label: 'Kandidat', icon: 'groups', count: currentElectionCandidates.value.length },
+  { key: 'pemilih', label: 'Pemilih (DPT)', icon: 'how_to_reg', count: currentElection.value?.dptTarget ? currentElection.value.dptTarget.toLocaleString() : undefined },
+  { key: 'monitoring', label: 'Monitoring Suara', icon: 'monitoring' },
+  { key: 'pengaturan', label: 'Pengaturan & Aturan', icon: 'settings' }
+])
 
 // ─── Status Config ───────────────────────────────────────────────────
 const statusTheme = computed(() => {
+  if (!currentElection.value) {
+    return {
+      badgeBg: 'bg-slate-100 border-slate-200 text-slate-700',
+      dot: 'bg-slate-400',
+      ping: false,
+      label: 'Tidak Ditemukan',
+      cardBorder: 'border-slate-200'
+    }
+  }
   switch (currentElection.value.status) {
     case 'Berlangsung':
       return {
@@ -417,6 +156,7 @@ function formatDateRange(start: string, end: string): string {
 // ─── Clipboard Toast ─────────────────────────────────────────────────
 const copiedToast = ref(false)
 function copyElectionId() {
+  if (!currentElection.value) return
   navigator.clipboard.writeText(currentElection.value.id)
   copiedToast.value = true
   setTimeout(() => {
@@ -426,6 +166,8 @@ function copyElectionId() {
 
 // ─── Local Edit Modal State ──────────────────────────────────────────
 const showEditModal = ref(false)
+const originalStatus = ref<ElectionStatus>('Draft')
+const editErrors = ref<Record<string, string>>({})
 const editForm = ref({
   name: '',
   description: '',
@@ -433,12 +175,14 @@ const editForm = ref({
   position: '',
   period: '',
   level: '',
-  status: 'Berlangsung' as ElectionDetail['status'],
+  status: 'Berlangsung' as ElectionStatus,
   startDate: '',
   endDate: ''
 })
 
 function openEditModal() {
+  if (!currentElection.value) return
+  originalStatus.value = currentElection.value.status
   editForm.value = {
     name: currentElection.value.name,
     description: currentElection.value.description,
@@ -447,22 +191,60 @@ function openEditModal() {
     period: currentElection.value.period,
     level: currentElection.value.level,
     status: currentElection.value.status,
-    startDate: currentElection.value.startDate,
-    endDate: currentElection.value.endDate
+    startDate: formatDatetimeLocal(currentElection.value.startDate),
+    endDate: formatDatetimeLocal(currentElection.value.endDate)
   }
+  editErrors.value = {}
   showEditModal.value = true
 }
 
+function getEditableStatuses(status: ElectionStatus): ElectionStatus[] {
+  return getAvailableTransitions(originalStatus.value)
+}
+
+function validateEditForm(): boolean {
+  const errors: Record<string, string> = {}
+  if (!editForm.value.name.trim()) errors.name = 'Nama pemilihan wajib diisi.'
+  if (!editForm.value.level.trim()) errors.level = 'Tingkat pemilihan wajib diisi.'
+
+  if (currentElection.value && editForm.value.status !== currentElection.value.status) {
+    if (!canTransitionStatus(currentElection.value.status, editForm.value.status)) {
+      const allowed = allowedTransitions[currentElection.value.status].join(', ') || 'tidak ada'
+      errors.status = `Transisi status tidak valid: dari "${currentElection.value.status}" ke "${editForm.value.status}". Transisi yang diizinkan: ${allowed}.`
+    }
+  }
+
+  const scheduleVal = validateElectionSchedule(editForm.value.status, editForm.value.startDate, editForm.value.endDate)
+  if (!scheduleVal.valid) {
+    Object.assign(errors, scheduleVal.errors)
+  }
+
+  editErrors.value = errors
+  return Object.keys(errors).length === 0
+}
+
 function saveEditForm() {
-  currentElection.value.name = editForm.value.name.trim() || currentElection.value.name
-  currentElection.value.description = editForm.value.description.trim()
-  currentElection.value.organization = editForm.value.organization.trim() || currentElection.value.organization
-  currentElection.value.position = editForm.value.position.trim() || currentElection.value.position
-  currentElection.value.period = editForm.value.period.trim() || currentElection.value.period
-  currentElection.value.level = editForm.value.level.trim() || currentElection.value.level
-  currentElection.value.status = editForm.value.status
-  currentElection.value.startDate = editForm.value.startDate
-  currentElection.value.endDate = editForm.value.endDate
+  if (!currentElection.value) return
+  if (!validateEditForm()) return
+
+  const res = updateElection(currentElection.value.id, {
+    name: editForm.value.name.trim() || currentElection.value.name,
+    description: editForm.value.description.trim(),
+    organization: editForm.value.organization.trim() || currentElection.value.organization,
+    position: editForm.value.position.trim() || currentElection.value.position,
+    period: editForm.value.period.trim() || currentElection.value.period,
+    level: editForm.value.level.trim() || currentElection.value.level,
+    status: editForm.value.status,
+    startDate: editForm.value.startDate,
+    endDate: editForm.value.endDate
+  })
+
+  if (!res.success) {
+    editErrors.value.status = res.message
+    return
+  }
+
+  triggerToast(res.message)
   showEditModal.value = false
 }
 
@@ -476,7 +258,7 @@ const {
 } = useElectionDpt()
 
 // Dynamic Voters in this Election (Derived from Election DPT Database)
-const currentElectionVoters = computed(() => getVotersByElection(currentElection.value.id))
+const currentElectionVoters = computed(() => currentElection.value ? getVotersByElection(currentElection.value.id) : [])
 
 // DPT Statistics for this Election
 const dptStats = computed(() => {
@@ -486,17 +268,6 @@ const dptStats = computed(() => {
   const unvoted = total - voted
   const turnout = total > 0 ? Number(((voted / total) * 100).toFixed(1)) : 0
   return { total, voted, unvoted, turnout }
-})
-
-// Sync election stats with DPT database and Candidates database
-watchEffect(() => {
-  if (dptStats.value.total > 0) {
-    currentElection.value.dptTarget = dptStats.value.total
-    currentElection.value.dptVoted = dptStats.value.voted
-    currentElection.value.turnout = dptStats.value.turnout
-  }
-  // Sync candidate count with candidate database
-  currentElection.value.candidatesCount = candidateStats.value.total
 })
 
 // ─── DPT Table Filters ────────────────────────────────────────────────
@@ -551,7 +322,7 @@ const availableMasterStudents = computed(() => {
     return matchSearch && matchFaculty
   }).map(s => ({
     ...s,
-    isRegistered: isStudentInElectionDpt(currentElection.value.id, s.id)
+    isRegistered: currentElection.value ? isStudentInElectionDpt(currentElection.value.id, s.id) : false
   }))
 })
 
@@ -582,7 +353,7 @@ function openAddVotersModal() {
 }
 
 function submitAssignVoters() {
-  if (selectedStudentIdsToAdd.value.length === 0) return
+  if (!currentElection.value || selectedStudentIdsToAdd.value.length === 0) return
   const result = assignStudentsToElection(currentElection.value.id, selectedStudentIdsToAdd.value)
   if (result.added > 0) {
     triggerToast(`Berhasil menetapkan ${result.added} mahasiswa ke DPT pemilihan ${currentElection.value.id}.`)
@@ -607,7 +378,7 @@ function promptRemoveVoter(voter: ElectionVoterDetail) {
 }
 
 function confirmRemoveVoter() {
-  if (!voterToRemove.value) return
+  if (!currentElection.value || !voterToRemove.value) return
   const result = removeStudentFromElection(currentElection.value.id, voterToRemove.value.studentId)
   if (result.success) {
     triggerToast(`Hak suara mahasiswa ${voterToRemove.value.name} (NIM: ${voterToRemove.value.nim}) berhasil dicabut dari DPT.`)
@@ -633,16 +404,129 @@ function triggerToast(msg: string) {
 
 // ─── Candidate Management per Election (Composable) ───────────────────
 const {
+  masterCandidatesDatabase,
   getCandidatesByElection,
   getCandidateStats,
+  isCandidateInElection,
+  getUnassignedMasterCandidates,
+  assignCandidatesToElection,
+  removeCandidateFromElection,
   addCandidate,
   updateCandidate,
   deleteCandidate,
   canDeleteCandidate
 } = useElectionCandidates()
 
-const currentElectionCandidates = computed(() => getCandidatesByElection(currentElection.value.id))
-const candidateStats = computed(() => getCandidateStats(currentElection.value.id))
+// ─── Modal State: Pilih Kandidat Master ke Election ───────────────────
+const showSelectCandidateModal = ref(false)
+const candidateSearchQuery = ref('')
+const candidateTypeFilter = ref<'Semua' | 'pair' | 'single'>('Semua')
+const selectedCandidateIdsToAdd = ref<string[]>([])
+
+const availableMasterCandidates = computed(() => {
+  return masterCandidatesDatabase.value.map(m => {
+    const isRegistered = currentElection.value ? isCandidateInElection(currentElection.value.id, m.id) : false
+    return {
+      ...m,
+      isRegistered
+    }
+  }).filter(c => {
+    // 1. Filter pencarian (Nama, NIM, Ketua/Wakil, Tagline, Koalisi)
+    const q = candidateSearchQuery.value.trim().toLowerCase()
+    let matchQuery = true
+    if (q) {
+      const matchName = c.name.toLowerCase().includes(q)
+      const matchLeadName = c.leadCandidate.name.toLowerCase().includes(q)
+      const matchLeadNim = c.leadCandidate.nim.toLowerCase().includes(q)
+      const matchViceName = c.viceCandidate ? c.viceCandidate.name.toLowerCase().includes(q) : false
+      const matchViceNim = c.viceCandidate ? c.viceCandidate.nim.toLowerCase().includes(q) : false
+      const matchTagline = (c.tagline || '').toLowerCase().includes(q)
+      const matchCoalition = (c.coalition || '').toLowerCase().includes(q)
+      matchQuery = matchName || matchLeadName || matchLeadNim || matchViceName || matchViceNim || matchTagline || matchCoalition
+    }
+
+    // 2. Filter tipe pencalonan
+    let matchType = true
+    if (candidateTypeFilter.value !== 'Semua') {
+      matchType = c.type === candidateTypeFilter.value
+    }
+
+    return matchQuery && matchType
+  })
+})
+
+const unassignedMasterCandidates = computed(() => {
+  return availableMasterCandidates.value.filter(c => !c.isRegistered)
+})
+
+const isAllUnassignedCandidatesSelected = computed(() => {
+  return unassignedMasterCandidates.value.length > 0 &&
+    unassignedMasterCandidates.value.every(c => selectedCandidateIdsToAdd.value.includes(c.id))
+})
+
+function toggleSelectAllUnassignedCandidates() {
+  if (isAllUnassignedCandidatesSelected.value) {
+    const unassignedIds = new Set(unassignedMasterCandidates.value.map(c => c.id))
+    selectedCandidateIdsToAdd.value = selectedCandidateIdsToAdd.value.filter(id => !unassignedIds.has(id))
+  } else {
+    const unassignedIds = unassignedMasterCandidates.value.map(c => c.id)
+    selectedCandidateIdsToAdd.value = Array.from(new Set([...selectedCandidateIdsToAdd.value, ...unassignedIds]))
+  }
+}
+
+function openSelectCandidateModal() {
+  candidateSearchQuery.value = ''
+  candidateTypeFilter.value = 'Semua'
+  selectedCandidateIdsToAdd.value = []
+  showSelectCandidateModal.value = true
+}
+
+function submitAssignCandidates() {
+  if (!currentElection.value || selectedCandidateIdsToAdd.value.length === 0) return
+  const result = assignCandidatesToElection(currentElection.value.id, selectedCandidateIdsToAdd.value)
+  if (result.added > 0) {
+    triggerToast(`Berhasil menetapkan ${result.added} kandidat ke pemilihan #${currentElection.value.id}.`)
+  } else {
+    triggerToast('Tidak ada kandidat baru yang ditambahkan.')
+  }
+  selectedCandidateIdsToAdd.value = []
+  showSelectCandidateModal.value = false
+}
+
+const currentElectionCandidates = computed(() => currentElection.value ? getCandidatesByElection(currentElection.value.id) : [])
+const candidateStats = computed(() => currentElection.value ? getCandidateStats(currentElection.value.id) : { total: 0, verified: 0, pending: 0, rejected: 0, totalVotes: 0 })
+
+// Sync election stats with DPT database and Candidates database (only update if values actually changed)
+watch(
+  [dptStats, candidateStats],
+  ([newDpt, newCand]) => {
+    const c = currentElection.value
+    if (!c) return
+
+    const hasCandidateChange = (c.candidates !== newCand.total) || (c.candidatesCount !== newCand.total)
+    const hasDptChange = newDpt.total > 0 && (
+      c.dptTarget !== newDpt.total ||
+      c.dptVoted !== newDpt.voted ||
+      c.turnout !== newDpt.turnout
+    )
+
+    if (!hasCandidateChange && !hasDptChange) {
+      return
+    }
+
+    const updates: Partial<Election> = {
+      candidatesCount: newCand.total,
+      candidates: newCand.total
+    }
+    if (newDpt.total > 0) {
+      updates.dptTarget = newDpt.total
+      updates.dptVoted = newDpt.voted
+      updates.turnout = newDpt.turnout
+    }
+    updateElection(c.id, updates)
+  },
+  { immediate: true }
+)
 
 // ─── Candidate Form & Modal State ─────────────────────────────────────
 const showCandidateModal = ref(false)
@@ -716,7 +600,7 @@ function openCreateCandidateModal() {
 
   candidateForm.value = {
     ...defaultCandidateForm(),
-    type: currentElection.value.level.includes('DPM') || currentElection.value.name.includes('DPM') ? 'single' : 'pair',
+    type: currentElection.value?.level?.includes('DPM') || currentElection.value?.name?.includes('DPM') ? 'single' : 'pair',
     ballotNumber: suggestedBallot
   }
   showCandidateModal.value = true
@@ -782,7 +666,7 @@ function saveCandidateForm() {
 
   if (candidateModalMode.value === 'create') {
     const res = addCandidate({
-      electionId: currentElection.value.id,
+      electionId: currentElection.value ? currentElection.value.id : '',
       type: f.type,
       ballotNumber: f.ballotNumber,
       name: f.name.trim(),
@@ -882,13 +766,17 @@ const deleteValidation = ref<{ allowed: boolean; reason?: string }>({ allowed: t
 
 function promptDeleteCandidate(c: ElectionCandidate) {
   candidateToDelete.value = c
-  deleteValidation.value = canDeleteCandidate(c.id, currentElection.value.status)
+  deleteValidation.value = currentElection.value ? canDeleteCandidate(c.id, currentElection.value.status) : { allowed: false, reason: 'Pemilihan tidak aktif' }
   showDeleteCandidateModal.value = true
 }
 
 function confirmDeleteCandidate() {
-  if (!candidateToDelete.value) return
-  const res = deleteCandidate(candidateToDelete.value.id, currentElection.value.status)
+  if (!candidateToDelete.value || !currentElection.value) return
+  const res = removeCandidateFromElection(
+    currentElection.value.id,
+    candidateToDelete.value.id,
+    currentElection.value.status
+  )
   if (res.success) {
     triggerToast(res.message)
   } else {
@@ -905,10 +793,84 @@ const auditLogs = ref([
   { id: 3, time: '10:15:22 WIB', title: 'Sinkronisasi Token Auth NIM Sukses', desc: '14 token cadangan diterbitkan untuk voter dengan kendala surel.', type: 'info' },
   { id: 4, time: '08:00:00 WIB', title: 'Bilik Suara Digital Resmi Dibuka', desc: 'Bilik suara dibuka serentak oleh Panitia Pemilihan Raya KPU.', type: 'start' }
 ])
+
+// ─── Danger Zone Actions & Modals ────────────────────────────────────
+const showDeleteDraftModal = ref(false)
+const deleteDraftError = ref('')
+
+function promptDeleteDraft() {
+  deleteDraftError.value = ''
+  showDeleteDraftModal.value = true
+}
+
+function confirmDeleteDraft() {
+  if (!currentElection.value) return
+  const idToDelete = currentElection.value.id
+  const nameToDelete = currentElection.value.name
+  const res = deleteElection(idToDelete)
+  if (!res.success) {
+    deleteDraftError.value = res.message
+    triggerToast(`Gagal: ${res.message}`)
+    return
+  }
+  showDeleteDraftModal.value = false
+  triggerToast(res.message || `Draft pemilihan "${nameToDelete}" berhasil dihapus.`)
+  router.push('/admin/elections')
+}
+
+const showCloseElectionModal = ref(false)
+const closeElectionError = ref('')
+
+function promptCloseElection() {
+  closeElectionError.value = ''
+  showCloseElectionModal.value = true
+}
+
+function confirmCloseElection() {
+  if (!currentElection.value) return
+  const res = updateElection(currentElection.value.id, {
+    status: 'Selesai'
+  })
+  if (!res.success) {
+    closeElectionError.value = res.message
+    triggerToast(`Gagal: ${res.message}`)
+    return
+  }
+  showCloseElectionModal.value = false
+  triggerToast(res.message || 'Pemilihan berhasil ditutup dan berstatus Selesai.')
+}
 </script>
 
 <template>
   <div class="w-full flex flex-col gap-6 antialiased">
+    <!-- ══════════════════════════════════════════════════════════════════
+         STATE: TIDAK DITEMUKAN (NOT FOUND)
+    ═══════════════════════════════════════════════════════════════════ -->
+    <div v-if="!currentElection" class="bg-white p-12 rounded-2xl border border-slate-200 text-center space-y-4 max-w-lg mx-auto my-12 shadow-sm">
+      <div class="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
+        <span class="material-symbols-outlined text-[36px]">event_busy</span>
+      </div>
+      <div>
+        <h3 class="text-lg font-bold text-slate-900">Pemilihan Tidak Ditemukan</h3>
+        <p class="text-xs text-slate-500 mt-1 leading-relaxed">
+          Agenda pemilihan dengan ID <strong class="font-mono text-slate-700">#{{ rawId }}</strong> tidak ditemukan dalam sistem atau telah dihapus.
+        </p>
+      </div>
+      <div class="pt-2">
+        <NuxtLink
+          to="/admin/elections"
+          class="inline-flex items-center gap-2 px-4 py-2.5 bg-[#582be8] text-white text-xs font-semibold rounded-xl hover:bg-[#471ec7] shadow-sm shadow-purple-600/20 transition"
+        >
+          <span class="material-symbols-outlined text-[18px]">arrow_back</span>
+          Kembali ke Daftar Pemilihan
+        </NuxtLink>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         STATE: DATA DITEMUKAN (NORMAL VIEW)
+    ═══════════════════════════════════════════════════════════════════ -->
+    <template v-else>
     <!-- ══════════════════════════════════════════════════════════════════
          TOP BREADCRUMB & BACK ACTION BAR
     ═══════════════════════════════════════════════════════════════════ -->
@@ -937,6 +899,34 @@ const auditLogs = ref([
             {{ copiedToast ? 'check' : 'content_copy' }}
           </span>
           <span>{{ copiedToast ? 'ID Tersalin!' : 'Salin ID' }}</span>
+        </button>
+
+        <!-- Active Election Badge & Controls in Top Bar -->
+        <span
+          v-if="isActiveElection(currentElection.id)"
+          class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[#582be8] bg-purple-50 border border-purple-200 rounded-xl shadow-xs"
+          title="Pemilihan ini aktif ditampilkan pada portal pemilih"
+        >
+          <span class="material-symbols-outlined text-[16px]">how_to_vote</span>
+          <span>Pemilihan Aktif di Portal</span>
+        </span>
+        <button
+          v-if="isActiveElection(currentElection.id)"
+          @click="handleSetActiveElection(null)"
+          class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 hover:text-red-600 shadow-sm transition cursor-pointer"
+          title="Lepas penetapan pemilihan aktif"
+        >
+          <span class="material-symbols-outlined text-[16px]">cancel</span>
+          <span>Lepas Aktif</span>
+        </button>
+        <button
+          v-else-if="currentElection.status !== 'Selesai'"
+          @click="handleSetActiveElection(currentElection.id)"
+          class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#582be8] bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-xl shadow-sm transition cursor-pointer"
+          title="Tetapkan pemilihan ini sebagai pemilihan aktif untuk pemilih"
+        >
+          <span class="material-symbols-outlined text-[16px]">how_to_vote</span>
+          <span>Set Pemilihan Aktif</span>
         </button>
 
         <button
@@ -986,6 +976,15 @@ const auditLogs = ref([
                   <span :class="['relative inline-flex rounded-full h-2 w-2', statusTheme.dot]"></span>
                 </span>
                 {{ statusTheme.label }}
+              </span>
+
+              <!-- Active Status Badge in Hero -->
+              <span
+                v-if="isActiveElection(currentElection.id)"
+                class="inline-flex items-center gap-1 px-3 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-[#582be8] border border-purple-200"
+              >
+                <span class="material-symbols-outlined text-[14px]">how_to_vote</span>
+                Pemilihan Aktif di Portal
               </span>
 
               <!-- Period Pill -->
@@ -1465,11 +1464,11 @@ const auditLogs = ref([
 
           <button
             type="button"
-            @click="openCreateCandidateModal"
+            @click="openSelectCandidateModal"
             class="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-[#582be8] hover:bg-[#471ec7] rounded-xl shadow-md shadow-purple-600/25 transition cursor-pointer"
           >
-            <span class="material-symbols-outlined text-[18px]">person_add</span>
-            + Tambah Paslon / Kandidat
+            <span class="material-symbols-outlined text-[18px]">how_to_reg</span>
+            + Pilih Kandidat dari Master
           </button>
         </div>
       </div>
@@ -1663,14 +1662,23 @@ const auditLogs = ref([
         <p class="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
           Belum ada pasangan calon atau kandidat independen yang ditetapkan pada agenda pemilihan <strong>#{{ currentElection.id }}</strong>. Daftarkan calon baru untuk memulai pengisian bilik suara.
         </p>
-        <button
-          type="button"
-          @click="openCreateCandidateModal"
-          class="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-[#582be8] hover:bg-[#471ec7] rounded-xl shadow-md shadow-purple-600/25 transition cursor-pointer mt-2"
-        >
-          <span class="material-symbols-outlined text-[18px]">add</span>
-          + Tambah Paslon / Kandidat Pertama
-        </button>
+        <div class="flex items-center justify-center gap-3 mt-2">
+          <button
+            type="button"
+            @click="openSelectCandidateModal"
+            class="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-[#582be8] hover:bg-[#471ec7] rounded-xl shadow-md shadow-purple-600/25 transition cursor-pointer"
+          >
+            <span class="material-symbols-outlined text-[18px]">how_to_reg</span>
+            Pilih Kandidat dari Master
+          </button>
+          <NuxtLink
+            to="/admin/candidates"
+            class="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition cursor-pointer"
+          >
+            <span class="material-symbols-outlined text-[18px]">open_in_new</span>
+            Kelola Master Kandidat
+          </NuxtLink>
+        </div>
       </div>
 
       <!-- SOP & Regulasi KPU Card -->
@@ -2143,6 +2151,49 @@ const auditLogs = ref([
         </div>
 
         <div class="space-y-4 text-xs">
+          <!-- Active Election Config -->
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl bg-purple-50/50 border border-purple-100 gap-3">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-[#582be8] text-[18px]">how_to_vote</span>
+                <p class="font-bold text-slate-900">Penetapan Pemilihan Aktif (Portal Pemilih)</p>
+              </div>
+              <p class="text-slate-500 text-xs mt-1">
+                Menentukan apakah agenda pemilihan ini yang aktif dan ditampilkan untuk para mahasiswa di bilik suara portal pemilih. Maksimal satu pemilihan aktif dalam sistem.
+              </p>
+            </div>
+            <div class="shrink-0 flex items-center gap-2">
+              <template v-if="isActiveElection(currentElection.id)">
+                <span class="font-semibold text-[#582be8] bg-purple-100 px-3 py-1 rounded-full text-[11px] inline-flex items-center gap-1">
+                  <span class="material-symbols-outlined text-[14px]">verified</span>
+                  Sedang Aktif
+                </span>
+                <button
+                  type="button"
+                  @click="handleSetActiveElection(null)"
+                  class="px-3 py-1 text-xs font-semibold text-slate-600 hover:text-red-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition cursor-pointer"
+                >
+                  Lepas Aktif
+                </button>
+              </template>
+              <template v-else-if="currentElection.status === 'Selesai'">
+                <span class="font-semibold text-slate-500 bg-slate-100 px-3 py-1 rounded-full text-[11px]">
+                  Selesai (Tidak Dapat Diaktifkan)
+                </span>
+              </template>
+              <template v-else>
+                <button
+                  type="button"
+                  @click="handleSetActiveElection(currentElection.id)"
+                  class="px-3.5 py-1.5 text-xs font-semibold text-white bg-[#582be8] hover:bg-[#471ec7] rounded-xl shadow-sm shadow-purple-600/20 transition cursor-pointer inline-flex items-center gap-1"
+                >
+                  <span class="material-symbols-outlined text-[14px]">how_to_vote</span>
+                  Tetapkan sebagai Aktif
+                </button>
+              </template>
+            </div>
+          </div>
+
           <!-- Config item 1 -->
           <div class="flex items-center justify-between p-4 rounded-xl bg-slate-50 border border-slate-100">
             <div>
@@ -2188,18 +2239,49 @@ const auditLogs = ref([
           <h4 class="text-base font-bold">Zona Pengendalian Kritis</h4>
         </div>
         <p class="text-xs text-slate-500 leading-relaxed">
-          Tindakan di bawah ini berdampak langsung pada bilik suara mahasiswa dan catatan rekapitulasi audit.
+          Tindakan di bawah ini berdampak langsung pada siklus hidup pemilihan, bilik suara mahasiswa, dan catatan rekapitulasi audit.
         </p>
 
         <div class="flex flex-wrap items-center gap-3 pt-2">
+          <!-- Tombol Hapus Draft: Hanya tampil jika status Draft -->
           <button
+            v-if="currentElection.status === 'Draft'"
             type="button"
-            class="px-4 py-2 text-xs font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl transition inline-flex items-center gap-1.5"
-            @click="alert('Tindakan ini memerlukan otoritas ganda Ketua KPU')"
+            @click="promptDeleteDraft"
+            class="px-4 py-2 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-sm shadow-red-600/25 transition inline-flex items-center gap-1.5 cursor-pointer"
           >
-            <span class="material-symbols-outlined text-[16px]">pause_circle</span>
-            Jeda Pemilihan Sementara
+            <span class="material-symbols-outlined text-[16px]">delete</span>
+            Hapus Draft Pemilihan
           </button>
+
+          <!-- Tombol Tutup Pemilihan: Hanya tampil jika status Berlangsung -->
+          <button
+            v-if="currentElection.status === 'Berlangsung'"
+            type="button"
+            @click="promptCloseElection"
+            class="px-4 py-2 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-sm shadow-red-600/25 transition inline-flex items-center gap-1.5 cursor-pointer"
+          >
+            <span class="material-symbols-outlined text-[16px]">lock_clock</span>
+            Tutup Pemilihan
+          </button>
+
+          <!-- Status Selesai info badge -->
+          <span
+            v-if="currentElection.status === 'Selesai'"
+            class="px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-xl inline-flex items-center gap-1.5"
+          >
+            <span class="material-symbols-outlined text-[16px]">inventory_2</span>
+            Pemilihan telah ditutup &amp; diarsipkan
+          </span>
+
+          <!-- Status Terjadwal info badge -->
+          <span
+            v-if="currentElection.status === 'Terjadwal'"
+            class="px-3 py-1.5 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-xl inline-flex items-center gap-1.5"
+          >
+            <span class="material-symbols-outlined text-[16px]">schedule</span>
+            Pemilihan telah terjadwal (Ubah status melalui Ubah Pengaturan)
+          </span>
 
           <NuxtLink
             to="/admin/elections"
@@ -2211,6 +2293,8 @@ const auditLogs = ref([
         </div>
       </div>
     </div>
+
+    </template>
 
     <!-- ══════════════════════════════════════════════════════════════════
          MODAL: EDIT PEMILIHAN (LOCAL STATE)
@@ -2230,7 +2314,7 @@ const auditLogs = ref([
                 </div>
                 <div>
                   <h3 class="text-base font-bold text-slate-900">Edit Pengaturan Pemilihan</h3>
-                  <p class="font-mono text-[10px] text-slate-400">#{{ currentElection.id }}</p>
+                  <p class="font-mono text-[10px] text-slate-400">#{{ currentElection?.id }}</p>
                 </div>
               </div>
               <button @click="showEditModal = false" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition">
@@ -2241,12 +2325,14 @@ const auditLogs = ref([
             <div class="p-6 space-y-4">
               <!-- Nama -->
               <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">Nama Pemilihan</label>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Nama Pemilihan <span class="text-red-500">*</span></label>
                 <input
                   v-model="editForm.name"
                   type="text"
-                  class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-[#582be8] focus:bg-white transition"
+                  class="w-full px-3.5 py-2.5 bg-slate-50 border rounded-xl text-xs text-slate-900 focus:outline-none focus:border-[#582be8] focus:bg-white transition"
+                  :class="editErrors.name ? 'border-red-300' : 'border-slate-200'"
                 >
+                <p v-if="editErrors.name" class="text-[11px] text-red-500 mt-1">{{ editErrors.name }}</p>
               </div>
 
               <!-- Deskripsi -->
@@ -2282,12 +2368,14 @@ const auditLogs = ref([
               <!-- Tingkat, Periode & Status -->
               <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label class="block text-xs font-semibold text-slate-700 mb-1">Tingkat</label>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Tingkat <span class="text-red-500">*</span></label>
                   <input
                     v-model="editForm.level"
                     type="text"
-                    class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-[#582be8] focus:bg-white transition"
+                    class="w-full px-3.5 py-2.5 bg-slate-50 border rounded-xl text-xs text-slate-900 focus:outline-none focus:border-[#582be8] focus:bg-white transition"
+                    :class="editErrors.level ? 'border-red-300' : 'border-slate-200'"
                   >
+                  <p v-if="editErrors.level" class="text-[11px] text-red-500 mt-1">{{ editErrors.level }}</p>
                 </div>
                 <div>
                   <label class="block text-xs font-semibold text-slate-700 mb-1">Periode</label>
@@ -2301,13 +2389,19 @@ const auditLogs = ref([
                   <label class="block text-xs font-semibold text-slate-700 mb-1">Status Operasional</label>
                   <select
                     v-model="editForm.status"
-                    class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-[#582be8] cursor-pointer"
+                    class="w-full px-3.5 py-2.5 bg-slate-50 border rounded-xl text-xs text-slate-900 focus:outline-none focus:border-[#582be8] cursor-pointer"
+                    :class="editErrors.status ? 'border-red-300' : 'border-slate-200'"
                   >
-                    <option value="Berlangsung">Berlangsung</option>
-                    <option value="Terjadwal">Terjadwal</option>
-                    <option value="Draft">Draft</option>
-                    <option value="Selesai">Selesai</option>
+                    <option
+                      v-for="s in getEditableStatuses(editForm.status)"
+                      :key="s"
+                      :value="s"
+                    >
+                      {{ s }}
+                    </option>
                   </select>
+                  <p v-if="editErrors.status" class="text-[11px] text-red-500 mt-1">{{ editErrors.status }}</p>
+                  <p v-else class="text-[10px] text-slate-400 mt-0.5">Dibatasi aturan siklus pemilu.</p>
                 </div>
               </div>
 
@@ -2318,16 +2412,20 @@ const auditLogs = ref([
                   <input
                     v-model="editForm.startDate"
                     type="datetime-local"
-                    class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-[#582be8]"
+                    class="w-full px-3.5 py-2 bg-slate-50 border rounded-xl text-xs text-slate-900 focus:outline-none focus:border-[#582be8]"
+                    :class="editErrors.startDate ? 'border-red-300' : 'border-slate-200'"
                   >
+                  <p v-if="editErrors.startDate" class="text-[11px] text-red-500 mt-1">{{ editErrors.startDate }}</p>
                 </div>
                 <div>
                   <label class="block text-xs font-semibold text-slate-700 mb-1">Waktu Selesai</label>
                   <input
                     v-model="editForm.endDate"
                     type="datetime-local"
-                    class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-[#582be8]"
+                    class="w-full px-3.5 py-2 bg-slate-50 border rounded-xl text-xs text-slate-900 focus:outline-none focus:border-[#582be8]"
+                    :class="editErrors.endDate ? 'border-red-300' : 'border-slate-200'"
                   >
+                  <p v-if="editErrors.endDate" class="text-[11px] text-red-500 mt-1">{{ editErrors.endDate }}</p>
                 </div>
               </div>
             </div>
@@ -2346,6 +2444,230 @@ const auditLogs = ref([
               >
                 Simpan Perubahan
               </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         MODAL: PILIH KANDIDAT / PASLON DARI MASTER
+    ═══════════════════════════════════════════════════════════════════ -->
+    <Teleport to="body">
+      <Transition name="modal-fade">
+        <div v-if="showSelectCandidateModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <!-- Backdrop -->
+          <div class="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" @click="showSelectCandidateModal = false"></div>
+
+          <!-- Modal Body -->
+          <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col border border-slate-200 overflow-hidden">
+            <!-- Modal Header -->
+            <div class="bg-white border-b border-slate-100 px-6 py-4 flex items-center justify-between z-10 shrink-0">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-purple-50 text-[#582be8] flex items-center justify-center">
+                  <span class="material-symbols-outlined text-[22px]">how_to_reg</span>
+                </div>
+                <div>
+                  <h3 class="text-base font-bold text-slate-900">Pilih Kandidat / Paslon dari Master</h3>
+                  <p class="font-mono text-[11px] text-slate-400">
+                    Agenda #{{ currentElection.id }} — {{ currentElection.name }}
+                  </p>
+                </div>
+              </div>
+              <button
+                @click="showSelectCandidateModal = false"
+                class="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+              >
+                <span class="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            <!-- Search & Filter Controls -->
+            <div class="p-4 bg-slate-50/80 border-b border-slate-100 flex flex-col sm:flex-row gap-3 shrink-0">
+              <div class="relative flex-1">
+                <span class="absolute left-3 top-2.5 text-slate-400 material-symbols-outlined text-[18px]">search</span>
+                <input
+                  v-model="candidateSearchQuery"
+                  type="text"
+                  placeholder="Cari kandidat master via nama, NIM, atau koalisi..."
+                  class="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#582be8]"
+                />
+              </div>
+
+              <select
+                v-model="candidateTypeFilter"
+                class="px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:border-[#582be8] cursor-pointer"
+              >
+                <option value="Semua">Semua Tipe Pencalonan</option>
+                <option value="pair">Pasangan Calon (Pair)</option>
+                <option value="single">Kandidat Tunggal (Single)</option>
+              </select>
+            </div>
+
+            <!-- Batch Selection Header Bar -->
+            <div class="px-6 py-2.5 bg-purple-50/60 border-b border-purple-100/80 flex items-center justify-between text-xs shrink-0">
+              <label class="flex items-center gap-2 cursor-pointer font-medium text-slate-700 select-none">
+                <input
+                  type="checkbox"
+                  :checked="isAllUnassignedCandidatesSelected"
+                  @change="toggleSelectAllUnassignedCandidates"
+                  class="h-4 w-4 rounded border-slate-300 text-[#582be8] focus:ring-[#582be8]/20 cursor-pointer"
+                />
+                <span>Pilih Semua Kandidat yang Belum Terdaftar</span>
+              </label>
+
+              <span class="font-mono text-xs font-bold text-[#582be8]">
+                {{ selectedCandidateIdsToAdd.length }} kandidat dipilih
+              </span>
+            </div>
+
+            <!-- Scrollable Candidate List -->
+            <div class="overflow-y-auto flex-1 p-0">
+              <!-- Empty State: Master Database Kosong atau Tidak ada Hasil Cari -->
+              <div v-if="availableMasterCandidates.length === 0" class="p-8 text-center space-y-3">
+                <div class="w-12 h-12 rounded-xl bg-purple-50 text-[#582be8] flex items-center justify-center mx-auto">
+                  <span class="material-symbols-outlined text-[28px]">search_off</span>
+                </div>
+                <h4 class="text-sm font-bold text-slate-800">Tidak Ada Kandidat Master Ditemukan</h4>
+                <p class="text-xs text-slate-500 max-w-md mx-auto">
+                  Tidak ada calon master yang sesuai dengan kata kunci atau belum ada data master kandidat yang didaftarkan.
+                </p>
+                <div class="pt-2">
+                  <NuxtLink
+                    to="/admin/candidates"
+                    class="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-[#582be8] hover:bg-[#471ec7] rounded-xl shadow-md transition"
+                  >
+                    <span class="material-symbols-outlined text-[16px]">add</span>
+                    Daftarkan Master Kandidat Baru
+                  </NuxtLink>
+                </div>
+              </div>
+
+              <!-- List Kandidat Master -->
+              <table v-else class="w-full text-left text-xs border-collapse">
+                <thead class="bg-slate-50 text-slate-400 font-mono text-[10px] uppercase border-b border-slate-100 sticky top-0 z-10">
+                  <tr>
+                    <th class="w-12 px-4 py-3 text-center">Pilih</th>
+                    <th class="px-4 py-3">Kandidat / Paslon (Master Data)</th>
+                    <th class="px-4 py-3">Tipe / Koalisi</th>
+                    <th class="px-4 py-3">Calon Ketua &amp; Wakil</th>
+                    <th class="px-4 py-3 text-center">Status di Pemilihan Ini</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                  <tr
+                    v-for="c in availableMasterCandidates"
+                    :key="c.id"
+                    :class="[
+                      'transition-colors',
+                      c.isRegistered
+                        ? 'bg-slate-50/50 opacity-60'
+                        : selectedCandidateIdsToAdd.includes(c.id)
+                        ? 'bg-purple-50/40'
+                        : 'hover:bg-slate-50/80'
+                    ]"
+                  >
+                    <!-- Checkbox -->
+                    <td class="px-4 py-3.5 text-center">
+                      <input
+                        v-if="!c.isRegistered"
+                        type="checkbox"
+                        :value="c.id"
+                        v-model="selectedCandidateIdsToAdd"
+                        class="h-4 w-4 rounded border-slate-300 text-[#582be8] focus:ring-[#582be8]/20 cursor-pointer"
+                      />
+                      <span
+                        v-else
+                        class="material-symbols-outlined text-[18px] text-emerald-600 inline-block"
+                        title="Sudah terdaftar di agenda pemilihan ini"
+                      >
+                        check_circle
+                      </span>
+                    </td>
+
+                    <!-- Profil Master -->
+                    <td class="px-4 py-3.5">
+                      <div class="flex items-center gap-2.5">
+                        <div
+                          class="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs text-white shrink-0 shadow-sm"
+                          :style="{ backgroundColor: c.color || '#582be8' }"
+                        >
+                          <span class="material-symbols-outlined text-[16px]">{{ c.type === 'pair' ? 'groups' : 'person' }}</span>
+                        </div>
+                        <div class="min-w-0">
+                          <p class="font-bold text-slate-900 truncate">{{ c.name }}</p>
+                          <p class="text-[11px] text-slate-400 italic truncate">{{ c.tagline }}</p>
+                        </div>
+                      </div>
+                    </td>
+
+                    <!-- Tipe & Koalisi -->
+                    <td class="px-4 py-3.5">
+                      <span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700">
+                        {{ c.type === 'pair' ? 'Pasangan Calon' : 'Kandidat Tunggal' }}
+                      </span>
+                      <p class="text-[11px] text-slate-500 mt-0.5 truncate">{{ c.coalition || 'Independen' }}</p>
+                    </td>
+
+                    <!-- Personil Ketua & Wakil -->
+                    <td class="px-4 py-3.5">
+                      <p class="font-medium text-slate-800">{{ c.leadCandidate.name }} (NIM: {{ c.leadCandidate.nim }})</p>
+                      <p v-if="c.viceCandidate" class="text-slate-500 text-[11px] mt-0.5">
+                        Wakil: {{ c.viceCandidate.name }} (NIM: {{ c.viceCandidate.nim }})
+                      </p>
+                    </td>
+
+                    <!-- Status Partisipasi -->
+                    <td class="px-4 py-3.5 text-center">
+                      <span
+                        v-if="c.isRegistered"
+                        class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-700 border border-emerald-200"
+                      >
+                        <span class="material-symbols-outlined text-[12px]">check</span>
+                        Sudah Terdaftar
+                      </span>
+                      <span
+                        v-else
+                        class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-medium text-slate-500"
+                      >
+                        Belum Terdaftar
+                      </span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="bg-slate-50 border-t border-slate-100 px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+              <div class="flex items-center gap-3">
+                <NuxtLink
+                  to="/admin/candidates"
+                  class="text-xs text-[#582be8] hover:underline font-semibold flex items-center gap-1"
+                >
+                  <span class="material-symbols-outlined text-[16px]">open_in_new</span>
+                  Kelola / Buat Master Kandidat
+                </NuxtLink>
+              </div>
+
+              <div class="flex items-center gap-2.5 w-full sm:w-auto">
+                <button
+                  type="button"
+                  @click="showSelectCandidateModal = false"
+                  class="flex-1 sm:flex-none px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 transition cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  @click="submitAssignCandidates"
+                  :disabled="selectedCandidateIdsToAdd.length === 0"
+                  class="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-2 text-xs font-semibold text-white bg-[#582be8] hover:bg-[#471ec7] disabled:opacity-50 disabled:cursor-not-allowed rounded-xl shadow-md shadow-purple-600/25 transition cursor-pointer"
+                >
+                  <span class="material-symbols-outlined text-[16px]">check</span>
+                  Tetapkan Kandidat Terpilih ({{ selectedCandidateIdsToAdd.length }})
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -3152,7 +3474,7 @@ const auditLogs = ref([
 
               <!-- Title -->
               <h3 class="text-base font-bold text-slate-900">
-                {{ deleteValidation.allowed ? 'Hapus Data Kandidat?' : 'Penghapusan Ditolak Sistem' }}
+                {{ deleteValidation.allowed ? 'Cabut Keikutsertaan Kandidat?' : 'Pencabutan Ditolak Sistem' }}
               </h3>
 
               <!-- Condition: Not Allowed (Business Rule Block) -->
@@ -3170,13 +3492,13 @@ const auditLogs = ref([
               </div>
 
               <!-- Condition: Allowed -->
-              <div v-else class="mt-2 text-xs text-slate-500 leading-relaxed">
+              <div v-else class="mt-2 text-xs text-slate-500 leading-relaxed space-y-2 text-left">
                 <p>
-                  Apakah Anda yakin ingin menghapus calon <strong class="text-slate-900">{{ candidateToDelete.name }}</strong> (Nomor Urut <strong class="text-slate-900 font-mono">#{{ candidateToDelete.ballotNumber }}</strong>) dari agenda pemilihan <strong>#{{ currentElection.id }}</strong>?
+                  Apakah Anda yakin ingin mencabut keikutsertaan calon <strong class="text-slate-900">{{ candidateToDelete.name }}</strong> (Nomor Urut <strong class="text-slate-900 font-mono">#{{ candidateToDelete.ballotNumber }}</strong>) dari agenda pemilihan <strong>#{{ currentElection.id }}</strong>?
                 </p>
-                <p class="mt-2 text-[11px] text-red-600 font-medium">
-                  Tindakan ini permanen dan nomor urut #{{ candidateToDelete.ballotNumber }} akan tersedia kembali untuk calon lain.
-                </p>
+                <div class="p-3 bg-purple-50 rounded-xl border border-purple-100 text-[11px] text-purple-900 leading-relaxed">
+                  <strong>Informasi Master Data:</strong> Profil master kandidat ini tetap tersimpan aman di database dan tidak akan terhapus. Keikutsertaan kandidat di pemilihan lain juga tidak terpengaruh.
+                </div>
               </div>
             </div>
 
@@ -3196,7 +3518,110 @@ const auditLogs = ref([
                 @click="confirmDeleteCandidate"
                 class="flex-1 px-4 py-2.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-md shadow-red-600/25 transition cursor-pointer"
               >
-                Ya, Hapus Kandidat
+                Ya, Cabut dari Pemilihan
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         MODAL: KONFIRMASI HAPUS DRAFT PEMILIHAN
+    ═══════════════════════════════════════════════════════════════════ -->
+    <Teleport to="body">
+      <Transition name="modal-fade">
+        <div v-if="showDeleteDraftModal && currentElection" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div class="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" @click="showDeleteDraftModal = false"></div>
+
+          <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md border border-slate-200 overflow-hidden">
+            <div class="p-6 text-center">
+              <div class="w-14 h-14 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mx-auto mb-4">
+                <span class="material-symbols-outlined text-[30px]">delete_forever</span>
+              </div>
+
+              <h3 class="text-base font-bold text-slate-900">Hapus Draft Pemilihan?</h3>
+              <p class="text-xs text-slate-500 mt-2 leading-relaxed">
+                Apakah Anda yakin ingin menghapus draft agenda <strong class="text-slate-900">{{ currentElection.name }}</strong> (<span class="font-mono text-slate-700 font-semibold">#{{ currentElection.id }}</span>)? Tindakan ini bersifat permanen dan data pemilihan akan dihapus dari sistem.
+              </p>
+
+              <div v-if="deleteDraftError" class="mt-3 p-3 bg-red-50 rounded-xl border border-red-200 text-xs text-red-700 text-left">
+                {{ deleteDraftError }}
+              </div>
+            </div>
+
+            <div class="px-6 pb-6 flex items-center gap-3">
+              <button
+                type="button"
+                @click="showDeleteDraftModal = false"
+                class="flex-1 px-4 py-2.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                @click="confirmDeleteDraft"
+                class="flex-1 px-4 py-2.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-md shadow-red-600/25 transition cursor-pointer"
+              >
+                Ya, Hapus Draft
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         MODAL: KONFIRMASI TUTUP PEMILIHAN (SELESAI)
+    ═══════════════════════════════════════════════════════════════════ -->
+    <Teleport to="body">
+      <Transition name="modal-fade">
+        <div v-if="showCloseElectionModal && currentElection" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div class="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" @click="showCloseElectionModal = false"></div>
+
+          <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md border border-slate-200 overflow-hidden">
+            <div class="p-6 text-center">
+              <div class="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-4">
+                <span class="material-symbols-outlined text-[30px]">lock_clock</span>
+              </div>
+
+              <h3 class="text-base font-bold text-slate-900">Tutup Pemungutan Suara?</h3>
+              <p class="text-xs text-slate-500 mt-2 leading-relaxed">
+                Apakah Anda yakin ingin menutup pemilihan <strong class="text-slate-900">{{ currentElection.name }}</strong> (<span class="font-mono text-slate-700 font-semibold">#{{ currentElection.id }}</span>)?
+              </p>
+
+              <div class="p-3 bg-amber-50 rounded-xl border border-amber-200 mt-3.5 text-[11px] text-amber-900 text-left space-y-1">
+                <div class="flex items-start gap-1.5 font-bold">
+                  <span class="material-symbols-outlined text-[16px] text-amber-700 shrink-0">info</span>
+                  <span>Dampak Penutupan Pemilihan:</span>
+                </div>
+                <ul class="list-disc pl-5 space-y-0.5 text-amber-800">
+                  <li>Status operasional akan beralih menjadi <strong>Selesai</strong>.</li>
+                  <li>Bilik suara pemilih akan ditutup dan tidak dapat menerima suara lagi.</li>
+                  <li>Penetapan pemilihan aktif di portal pemilih akan dilepas.</li>
+                  <li>Status <strong>Selesai</strong> bersifat terminal dan tidak dapat dibuka kembali.</li>
+                </ul>
+              </div>
+
+              <div v-if="closeElectionError" class="mt-3 p-3 bg-red-50 rounded-xl border border-red-200 text-xs text-red-700 text-left">
+                {{ closeElectionError }}
+              </div>
+            </div>
+
+            <div class="px-6 pb-6 flex items-center gap-3">
+              <button
+                type="button"
+                @click="showCloseElectionModal = false"
+                class="flex-1 px-4 py-2.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                @click="confirmCloseElection"
+                class="flex-1 px-4 py-2.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-md shadow-red-600/25 transition cursor-pointer"
+              >
+                Ya, Tutup Pemilihan
               </button>
             </div>
           </div>
