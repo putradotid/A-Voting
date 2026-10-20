@@ -1,7 +1,51 @@
 <script setup lang="ts">
+import { ref } from 'vue'
+
 definePageMeta({
-  layout: 'auth'
+  layout: 'auth',
+  middleware: 'admin-auth',
 })
+
+const { login, loading, error: authError } = useAdminAuth()
+
+const email = ref('')
+const password = ref('')
+const showPassword = ref(false)
+const rememberMe = ref(false)
+const localError = ref<string | null>(null)
+
+const validateForm = (): boolean => {
+  localError.value = null
+
+  if (!email.value.trim()) {
+    localError.value = 'Email wajib diisi.'
+    return false
+  }
+
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!emailPattern.test(email.value.trim())) {
+    localError.value = 'Format email tidak valid.'
+    return false
+  }
+
+  if (!password.value) {
+    localError.value = 'Password wajib diisi.'
+    return false
+  }
+
+  return true
+}
+
+const handleLogin = async () => {
+  if (loading.value) return
+
+  if (!validateForm()) return
+
+  const success = await login(email.value.trim(), password.value)
+  if (success) {
+    await navigateTo('/admin/dashboard')
+  }
+}
 </script>
 
 <template>
@@ -258,7 +302,16 @@ definePageMeta({
               </div>
 
               <!-- Form -->
-              <form class="space-y-5">
+              <form class="space-y-5" @submit.prevent="handleLogin">
+
+                <!-- Error Alert -->
+                <div
+                  v-if="localError || authError"
+                  class="p-3.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-start gap-2.5"
+                >
+                  <span class="text-rose-500 text-base leading-none">⚠</span>
+                  <span class="flex-1 leading-relaxed">{{ localError || authError }}</span>
+                </div>
 
                 <!-- Username -->
                 <div>
@@ -279,10 +332,13 @@ definePageMeta({
                     <input
                       id="username"
                       name="username"
-                      type="text"
+                      type="email"
+                      v-model="email"
+                      :disabled="loading"
+                      @input="localError = null"
                       placeholder="admin@kampus.ac.id"
                       autocomplete="username"
-                      class="w-full h-12 pl-11 pr-4 bg-slate-50 border border-purple-100 rounded-xl text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-[#582be8] focus:ring-2 focus:ring-purple-100 transition-all duration-200"
+                      class="w-full h-12 pl-11 pr-4 bg-slate-50 border border-purple-100 rounded-xl text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-[#582be8] focus:ring-2 focus:ring-purple-100 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
                     />
                   </div>
                 </div>
@@ -306,17 +362,22 @@ definePageMeta({
                     <input
                       id="password"
                       name="password"
-                      type="password"
+                      :type="showPassword ? 'text' : 'password'"
+                      v-model="password"
+                      :disabled="loading"
+                      @input="localError = null"
                       placeholder="Masukkan password"
                       autocomplete="current-password"
-                      class="w-full h-12 pl-11 pr-11 bg-slate-50 border border-purple-100 rounded-xl text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-[#582be8] focus:ring-2 focus:ring-purple-100 transition-all duration-200"
+                      class="w-full h-12 pl-11 pr-11 bg-slate-50 border border-purple-100 rounded-xl text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-[#582be8] focus:ring-2 focus:ring-purple-100 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
                     />
 
                     <button
                       type="button"
+                      @click="showPassword = !showPassword"
                       class="absolute inset-y-0 right-0 flex items-center pr-3.5 text-slate-400 hover:text-[#582be8]"
+                      :aria-label="showPassword ? 'Sembunyikan password' : 'Lihat password'"
                     >
-                      ◉
+                      {{ showPassword ? '👁' : '◉' }}
                     </button>
                   </div>
                 </div>
@@ -330,6 +391,7 @@ definePageMeta({
                   >
                     <input
                       type="checkbox"
+                      v-model="rememberMe"
                       class="w-4 h-4 rounded border-purple-200 text-[#582be8] focus:ring-purple-200"
                     />
 
@@ -348,26 +410,24 @@ definePageMeta({
                   </a>
                 </div>
 
-                <!-- Login -->
-                <NuxtLink to="/admin/dashboard"
-                  class="w-full h-12 bg-[#582be8] hover:bg-[#4820ca] text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 shadow-md shadow-purple-600/15 hover:shadow-lg hover:shadow-purple-600/20 transition-all duration-200 active:scale-[0.99]"
-                >
-                  <span class="text-lg">→</span>
-
-                  <span>
-                    Masuk ke Dashboard
-                  </span>
-                </NuxtLink>
-                <!-- <button
+                <!-- Login Button -->
+                <button
                   type="submit"
-                  class="w-full h-12 bg-[#582be8] hover:bg-[#4820ca] text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 shadow-md shadow-purple-600/15 hover:shadow-lg hover:shadow-purple-600/20 transition-all duration-200 active:scale-[0.99]"
+                  :disabled="loading"
+                  class="w-full h-12 bg-[#582be8] hover:bg-[#4820ca] disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 shadow-md shadow-purple-600/15 hover:shadow-lg hover:shadow-purple-600/20 transition-all duration-200 active:scale-[0.99]"
                 >
-                  <span class="text-lg">→</span>
-
-                  <span>
-                    Masuk ke Dashboard
-                  </span>
-                </button> -->
+                  <template v-if="loading">
+                    <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Memproses...</span>
+                  </template>
+                  <template v-else>
+                    <span class="text-lg">→</span>
+                    <span>Masuk ke Dashboard</span>
+                  </template>
+                </button>
 
               </form>
 

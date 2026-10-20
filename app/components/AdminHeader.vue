@@ -1,3 +1,21 @@
+<script setup lang="ts">
+import { computed } from 'vue'
+
+const { user, logout, loading } = useAdminAuth()
+
+const handleLogout = async () => {
+  if (loading.value) return
+  await logout()
+  await navigateTo('/admin/login')
+}
+
+const displayEmail = computed(() => user.value?.email || 'admin@kampus.ac.id')
+const displayInitials = computed(() => {
+  if (!user.value?.email) return 'AD'
+  return user.value.email.slice(0, 2).toUpperCase()
+})
+</script>
+
 <template>
   <!-- =====================================================
        TOP NAVIGATION
@@ -121,27 +139,30 @@
           <div
             class="w-8 h-8 rounded-full bg-purple-100 text-purple-700 font-semibold flex items-center justify-center text-xs border border-purple-200"
           >
-            AD
+            {{ displayInitials }}
           </div>
 
           <div class="hidden sm:block text-left leading-tight">
-            <p class="text-xs font-semibold text-slate-800">
-              admin@gmail.com
+            <p class="text-xs font-semibold text-slate-800 truncate max-w-[150px]">
+              {{ displayEmail }}
             </p>
 
             <p class="text-[11px] text-[#582be8] font-medium">
-              Super Administrator
+              Administrator
             </p>
           </div>
 
-          <NuxtLink
-            to="/admin/login"
-            class="text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-2.5 py-1.5 rounded-lg transition"
+          <button
+            type="button"
+            @click="handleLogout"
+            :disabled="loading"
+            class="text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-2.5 py-1.5 rounded-lg transition disabled:opacity-50"
           >
             Logout
-          </NuxtLink>
+          </button>
         </div>
       </div>
     </div>
   </header>
 </template>
+

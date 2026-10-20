@@ -7,7 +7,8 @@ import type {
 } from '~/composables/useElectionCandidates'
 
 definePageMeta({
-  layout: 'admin'
+  layout: 'admin',
+  middleware: 'admin-auth',
 })
 
 // ─── Shared Candidates Composable ────────────────────────────────────

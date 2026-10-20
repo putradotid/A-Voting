@@ -1,6 +1,7 @@
 <script setup lang="ts">
 definePageMeta({
   layout: 'admin',
+  middleware: 'admin-auth',
   path: '/admin/elections/:id',
   alias: ['/admin/election/:id', '/admin/elections/manage/:id']
 })

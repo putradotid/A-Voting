@@ -1,5 +1,6 @@
 import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app'
 import { getFirestore, type Firestore } from 'firebase/firestore'
+import { getAuth, type Auth } from 'firebase/auth'
 
 export default defineNuxtPlugin(() => {
   const config = useRuntimeConfig()
@@ -22,6 +23,7 @@ export default defineNuxtPlugin(() => {
     : getApp()
 
   const firestore: Firestore | null = app ? getFirestore(app) : null
+  const auth: Auth | null = app ? getAuth(app) : null
 
   if (!app && import.meta.dev) {
     console.warn(
@@ -34,6 +36,7 @@ export default defineNuxtPlugin(() => {
       firebaseApp: app,
       firestore: firestore,
       db: firestore,
+      auth: auth,
     },
   }
 })
