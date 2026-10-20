@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import type {
   ElectionCandidate,
   CandidateType,
@@ -14,6 +14,9 @@ definePageMeta({
 // ─── Shared Candidates Composable ────────────────────────────────────
 const {
   masterCandidatesDatabase,
+  masterCandidatesLoading,
+  masterCandidatesError,
+  fetchMasterCandidates,
   electionCandidateParticipationsDatabase,
   candidatesDatabase,
   getAllMasterCandidates,
@@ -21,14 +24,21 @@ const {
   addMasterCandidate,
   updateMasterCandidate,
   deleteMasterCandidate,
+  canDeleteMasterCandidate,
   getMasterCandidateParticipations,
   getCandidatesByElection,
   getCandidateStats,
+  isBallotNumberAvailable,
+  updateCandidateParticipation,
   addCandidate,
   updateCandidate,
   deleteCandidate,
   canDeleteCandidate
 } = useElectionCandidates()
+
+onMounted(async () => {
+  await fetchMasterCandidates()
+})
 
 function getCandidateParticipationsList(candidateId: string) {
   return getMasterCandidateParticipations(candidateId)
@@ -167,8 +177,8 @@ const pairCandidates = computed(() => filteredCandidates.value.filter(c => c.typ
 const singleCandidates = computed(() => filteredCandidates.value.filter(c => c.type === 'single'))
 
 // ─── Quick Actions & Verifikasi ──────────────────────────────────────
-function quickVerify(c: ElectionCandidate) {
-  const res = updateCandidate(c.id, {
+async function quickVerify(c: ElectionCandidate) {
+  const res = await updateCandidate(c.id, {
     status: 'Terverifikasi KPU'
   })
   if (res.success) {
@@ -182,7 +192,11 @@ function quickVerify(c: ElectionCandidate) {
 const showCandidateModal = ref(false)
 const candidateModalMode = ref<'create' | 'edit'>('create')
 const editingCandidateId = ref<string | null>(null)
+const editingMasterId = ref<string | null>(null)
+const editingParticipationId = ref<string | null>(null)
 const candidateFormError = ref('')
+const isSavingCandidate = ref(false)
+const isDeletingCandidate = ref(false)
 
 interface CandidateFormState {
   electionId: string
@@ -212,7 +226,7 @@ interface CandidateFormState {
 }
 
 const defaultCandidateForm = (): CandidateFormState => ({
-  electionId: selectedElectionId.value === 'all' ? 'PEM-2025-01' : selectedElectionId.value,
+  electionId: selectedElectionId.value === 'all' ? 'none' : selectedElectionId.value,
   type: 'pair',
   ballotNumber: '',
   name: '',
@@ -240,9 +254,22 @@ const defaultCandidateForm = (): CandidateFormState => ({
 
 const candidateForm = ref<CandidateFormState>(defaultCandidateForm())
 
+function onElectionChange() {
+  if (candidateForm.value.electionId === 'none') {
+    candidateForm.value.ballotNumber = ''
+  } else if (!candidateForm.value.ballotNumber || candidateForm.value.ballotNumber === '-') {
+    const listInTarget = getCandidatesByElection(candidateForm.value.electionId)
+    const existingNums = listInTarget.map(c => parseInt(c.ballotNumber, 10)).filter(n => !isNaN(n))
+    const nextNum = existingNums.length > 0 ? Math.max(...existingNums) + 1 : 1
+    candidateForm.value.ballotNumber = String(nextNum).padStart(2, '0')
+  }
+}
+
 function openCreateCandidateModal() {
   candidateModalMode.value = 'create'
   editingCandidateId.value = null
+  editingMasterId.value = null
+  editingParticipationId.value = null
   candidateFormError.value = ''
 
   const targetElection = selectedElectionId.value === 'all' ? 'none' : selectedElectionId.value
@@ -266,11 +293,14 @@ function openCreateCandidateModal() {
 function openEditCandidateModal(c: ElectionCandidate) {
   candidateModalMode.value = 'edit'
   editingCandidateId.value = c.id
+  editingMasterId.value = c.candidateId || c.id
+  editingParticipationId.value = c.participationId || (c.id.startsWith('cand-') ? c.id : null)
   candidateFormError.value = ''
+
   candidateForm.value = {
     electionId: c.electionId,
     type: c.type,
-    ballotNumber: c.ballotNumber,
+    ballotNumber: c.electionId !== 'none' && c.ballotNumber !== '-' ? c.ballotNumber : '',
     name: c.name,
     tagline: c.tagline || '',
     coalition: c.coalition || '',
@@ -296,7 +326,7 @@ function openEditCandidateModal(c: ElectionCandidate) {
   showCandidateModal.value = true
 }
 
-function saveCandidateForm() {
+async function saveCandidateForm() {
   candidateFormError.value = ''
   const f = candidateForm.value
 
@@ -315,25 +345,83 @@ function saveCandidateForm() {
     }
   }
 
-  // Jika langsung diikutsertakan ke agenda pemilihan, nomor urut wajib diisi
-  if (f.electionId !== 'none' && !f.ballotNumber.trim()) {
-    candidateFormError.value = 'Nomor urut resmi wajib diisi jika langsung diikutsertakan ke agenda pemilihan.'
-    return
+  // Jika calon terikat pada agenda pemilihan, nomor urut wajib diisi dan unik
+  let cleanBallot = ''
+  if (f.electionId !== 'none') {
+    if (!f.ballotNumber.trim()) {
+      candidateFormError.value = 'Nomor urut resmi wajib diisi jika calon diikutsertakan pada agenda pemilihan.'
+      return
+    }
+    cleanBallot = f.ballotNumber.trim().padStart(2, '0')
+    const excludePartId = editingParticipationId.value || undefined
+    if (!isBallotNumberAvailable(f.electionId, cleanBallot, excludePartId)) {
+      candidateFormError.value = `Nomor urut #${cleanBallot} sudah digunakan oleh calon lain pada pemilihan ini. Pilih nomor urut lain.`
+      return
+    }
   }
 
   const misi = f.misiText.split('\n').map(s => s.trim()).filter(Boolean)
   const pillars = f.pillarsText.split('\n').map(s => s.trim()).filter(Boolean)
 
-  if (candidateModalMode.value === 'create') {
-    // Mode 1: Simpan sebagai Master Data Saja
-    if (f.electionId === 'none' || !f.electionId) {
-      const res = addMasterCandidate({
+  isSavingCandidate.value = true
+  try {
+    if (candidateModalMode.value === 'create') {
+      // Mode 1: Simpan sebagai Master Data Saja ke Firestore (Standby tanpa election)
+      if (f.electionId === 'none' || !f.electionId) {
+        const res = await addMasterCandidate({
+          type: f.type,
+          name: f.name.trim(),
+          tagline: f.tagline.trim(),
+          coalition: f.coalition.trim() || (f.type === 'pair' ? 'Koalisi Paslon' : 'Independen'),
+          color: f.color || '#582be8',
+          photo: f.photo.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+          leadCandidate: {
+            name: f.leadName.trim(),
+            nim: f.leadNim.trim(),
+            faculty: f.leadFaculty.trim() || 'Fakultas Teknik',
+            major: f.leadMajor.trim() || 'Teknik Informatika',
+            semester: Number(f.leadSemester) || 6,
+            gpa: Number(f.leadGpa) || 3.5
+          },
+          viceCandidate: f.type === 'pair' ? {
+            name: f.viceName.trim(),
+            nim: f.viceNim.trim(),
+            faculty: f.viceFaculty.trim() || 'Fakultas Teknik',
+            major: f.viceMajor.trim() || 'Teknik Informatika',
+            semester: Number(f.viceSemester) || 6,
+            gpa: Number(f.viceGpa) || 3.5
+          } : undefined,
+          visi: f.visi.trim() || 'Mewujudkan kepemimpinan mahasiswa yang berintegritas dan berdampak.',
+          misi: misi.length > 0 ? misi : ['Digitalisasi layanan administrasi kemahasiswaan.'],
+          pillars: pillars.length > 0 ? pillars : ['Tata Kelola Organisasi Transparan', 'Advokasi Mahasiswa'],
+          documents: [
+            { name: 'KRS & Transkrip IPK (≥ 3.25)', status: f.leadGpa >= 3.25 ? 'valid' : 'pending' },
+            { name: 'Surat Bebas Sanksi Akademik & SKCK', status: 'valid' },
+            { name: 'Bukti Dukungan Mahasiswa Sah', status: 'valid' }
+          ]
+        })
+
+        if (!res.success) {
+          candidateFormError.value = res.message
+          return
+        }
+
+        triggerToast(res.message)
+        showCandidateModal.value = false
+        return
+      }
+
+      // Mode 2: Simpan Master ke Firestore + Daftarkan langsung ke Agenda Pemilihan
+      const res = await addCandidate({
+        electionId: f.electionId,
         type: f.type,
+        ballotNumber: cleanBallot,
         name: f.name.trim(),
         tagline: f.tagline.trim(),
         coalition: f.coalition.trim() || (f.type === 'pair' ? 'Koalisi Paslon' : 'Independen'),
         color: f.color || '#582be8',
         photo: f.photo.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+        status: f.status,
         leadCandidate: {
           name: f.leadName.trim(),
           nim: f.leadNim.trim(),
@@ -355,9 +443,10 @@ function saveCandidateForm() {
         pillars: pillars.length > 0 ? pillars : ['Tata Kelola Organisasi Transparan', 'Advokasi Mahasiswa'],
         documents: [
           { name: 'KRS & Transkrip IPK (≥ 3.25)', status: f.leadGpa >= 3.25 ? 'valid' : 'pending' },
-          { name: 'Surat Bebas Sanksi Akademik & SKCK', status: 'valid' },
-          { name: 'Bukti Dukungan Mahasiswa Sah', status: 'valid' }
-        ]
+          { name: 'Surat Bebas Sanksi Akademik & SKCK', status: f.status === 'Terverifikasi KPU' ? 'valid' : 'pending' },
+          { name: 'Bukti Dukungan Mahasiswa Sah', status: f.status === 'Terverifikasi KPU' ? 'valid' : 'pending' }
+        ],
+        votesCount: 0
       })
 
       if (!res.success) {
@@ -367,92 +456,77 @@ function saveCandidateForm() {
 
       triggerToast(res.message)
       showCandidateModal.value = false
-      return
+    } else if (candidateModalMode.value === 'edit' && editingMasterId.value) {
+      // 1. Update profil master candidate di Cloud Firestore
+      const masterRes = await updateMasterCandidate(editingMasterId.value, {
+        type: f.type,
+        name: f.name.trim(),
+        tagline: f.tagline.trim(),
+        coalition: f.coalition.trim(),
+        color: f.color || '#582be8',
+        photo: f.photo.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+        leadCandidate: {
+          name: f.leadName.trim(),
+          nim: f.leadNim.trim(),
+          faculty: f.leadFaculty.trim(),
+          major: f.leadMajor.trim(),
+          semester: Number(f.leadSemester) || 6,
+          gpa: Number(f.leadGpa) || 3.5
+        },
+        viceCandidate: f.type === 'pair' ? {
+          name: f.viceName.trim(),
+          nim: f.viceNim.trim(),
+          faculty: f.viceFaculty.trim(),
+          major: f.viceMajor.trim(),
+          semester: Number(f.viceSemester) || 6,
+          gpa: Number(f.viceGpa) || 3.5
+        } : undefined,
+        visi: f.visi.trim(),
+        misi,
+        pillars
+      })
+
+      if (!masterRes.success) {
+        candidateFormError.value = masterRes.message
+        // Sinkronkan ulang data master dari Firestore agar UI tetap konsisten dengan server
+        await fetchMasterCandidates()
+        return
+      }
+
+      // 2. Update keikutsertaan / nomor urut jika terikat pemilihan
+      if (f.electionId !== 'none') {
+        if (editingParticipationId.value) {
+          const partRes = updateCandidateParticipation(editingParticipationId.value, {
+            ballotNumber: cleanBallot,
+            status: f.status
+          })
+          if (!partRes.success) {
+            candidateFormError.value = partRes.message
+            return
+          }
+        } else {
+          // Sebelumnya master standby, sekarang didaftarkan ke pemilihan
+          const newPart: ElectionCandidateParticipation = {
+            id: `cand-${f.electionId.toLowerCase()}-${Date.now().toString().slice(-4)}`,
+            electionId: f.electionId,
+            candidateId: editingMasterId.value,
+            ballotNumber: cleanBallot,
+            status: f.status,
+            isInBallot: f.status === 'Terverifikasi KPU',
+            votesCount: 0,
+            createdAt: new Date().toISOString()
+          }
+          electionCandidateParticipationsDatabase.value.push(newPart)
+        }
+        triggerToast(`Profil master kandidat "${f.name}" berhasil diperbarui di Firestore dan nomor paslon aktif pada sesi ini.`)
+      } else {
+        triggerToast(`Data profil master kandidat "${f.name}" berhasil diperbarui di Firestore.`)
+      }
+
+      showCandidateModal.value = false
     }
-
-    // Mode 2: Simpan Master + Ikutkan langsung ke Election
-    const res = addCandidate({
-      electionId: f.electionId,
-      type: f.type,
-      ballotNumber: f.ballotNumber,
-      name: f.name.trim(),
-      tagline: f.tagline.trim(),
-      coalition: f.coalition.trim() || (f.type === 'pair' ? 'Koalisi Paslon' : 'Independen'),
-      color: f.color || '#582be8',
-      photo: f.photo.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
-      status: f.status,
-      leadCandidate: {
-        name: f.leadName.trim(),
-        nim: f.leadNim.trim(),
-        faculty: f.leadFaculty.trim() || 'Fakultas Teknik',
-        major: f.leadMajor.trim() || 'Teknik Informatika',
-        semester: Number(f.leadSemester) || 6,
-        gpa: Number(f.leadGpa) || 3.5
-      },
-      viceCandidate: f.type === 'pair' ? {
-        name: f.viceName.trim(),
-        nim: f.viceNim.trim(),
-        faculty: f.viceFaculty.trim() || 'Fakultas Teknik',
-        major: f.viceMajor.trim() || 'Teknik Informatika',
-        semester: Number(f.viceSemester) || 6,
-        gpa: Number(f.viceGpa) || 3.5
-      } : undefined,
-      visi: f.visi.trim() || 'Mewujudkan kepemimpinan mahasiswa yang berintegritas dan berdampak.',
-      misi: misi.length > 0 ? misi : ['Digitalisasi layanan administrasi kemahasiswaan.'],
-      pillars: pillars.length > 0 ? pillars : ['Tata Kelola Organisasi Transparan', 'Advokasi Mahasiswa'],
-      documents: [
-        { name: 'KRS & Transkrip IPK (≥ 3.25)', status: f.leadGpa >= 3.25 ? 'valid' : 'pending' },
-        { name: 'Surat Bebas Sanksi Akademik & SKCK', status: f.status === 'Terverifikasi KPU' ? 'valid' : 'pending' },
-        { name: 'Bukti Dukungan Mahasiswa Sah', status: f.status === 'Terverifikasi KPU' ? 'valid' : 'pending' }
-      ],
-      votesCount: 0
-    })
-
-    if (!res.success) {
-      candidateFormError.value = res.message
-      return
-    }
-
-    triggerToast(res.message)
-    showCandidateModal.value = false
-  } else if (candidateModalMode.value === 'edit' && editingCandidateId.value) {
-    const res = updateCandidate(editingCandidateId.value, {
-      type: f.type,
-      ballotNumber: f.ballotNumber || undefined,
-      name: f.name.trim(),
-      tagline: f.tagline.trim(),
-      coalition: f.coalition.trim(),
-      color: f.color || '#582be8',
-      photo: f.photo.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
-      status: f.status,
-      leadCandidate: {
-        name: f.leadName.trim(),
-        nim: f.leadNim.trim(),
-        faculty: f.leadFaculty.trim(),
-        major: f.leadMajor.trim(),
-        semester: Number(f.leadSemester) || 6,
-        gpa: Number(f.leadGpa) || 3.5
-      },
-      viceCandidate: f.type === 'pair' ? {
-        name: f.viceName.trim(),
-        nim: f.viceNim.trim(),
-        faculty: f.viceFaculty.trim(),
-        major: f.viceMajor.trim(),
-        semester: Number(f.viceSemester) || 6,
-        gpa: Number(f.viceGpa) || 3.5
-      } : undefined,
-      visi: f.visi.trim(),
-      misi: misi.length > 0 ? misi : undefined,
-      pillars: pillars.length > 0 ? pillars : undefined
-    })
-
-    if (!res.success) {
-      candidateFormError.value = res.message
-      return
-    }
-
-    triggerToast(res.message)
-    showCandidateModal.value = false
+  } finally {
+    isSavingCandidate.value = false
   }
 }
 
@@ -471,20 +545,27 @@ const deleteValidation = ref<{ allowed: boolean; reason?: string }>({ allowed: t
 
 function promptDeleteCandidate(c: ElectionCandidate) {
   candidateToDelete.value = c
-  deleteValidation.value = canDeleteCandidate(c.id)
+  const masterId = c.candidateId || c.id
+  deleteValidation.value = canDeleteMasterCandidate(masterId)
   showDeleteCandidateModal.value = true
 }
 
-function confirmDeleteCandidate() {
+async function confirmDeleteCandidate() {
   if (!candidateToDelete.value) return
-  const res = deleteCandidate(candidateToDelete.value.id)
-  if (res.success) {
-    triggerToast(res.message)
-  } else {
-    triggerToast(`Gagal: ${res.message}`)
+  isDeletingCandidate.value = true
+  try {
+    const masterId = candidateToDelete.value.candidateId || candidateToDelete.value.id
+    const res = await deleteMasterCandidate(masterId)
+    if (res.success) {
+      triggerToast(res.message)
+    } else {
+      triggerToast(`Gagal: ${res.message}`)
+    }
+  } finally {
+    isDeletingCandidate.value = false
+    showDeleteCandidateModal.value = false
+    candidateToDelete.value = null
   }
-  showDeleteCandidateModal.value = false
-  candidateToDelete.value = null
 }
 </script>
 
@@ -524,6 +605,37 @@ function confirmDeleteCandidate() {
           <span class="material-symbols-outlined text-[18px]">add</span>
           Tambah Paslon / Kandidat
         </button>
+      </div>
+    </section>
+
+    <!-- Error State Alert (Firestore Read Error) -->
+    <div
+      v-if="masterCandidatesError"
+      class="flex items-start justify-between gap-4 rounded-2xl border border-red-200 bg-red-50 p-4 shadow-sm"
+    >
+      <div class="flex items-start gap-3">
+        <span class="material-symbols-outlined text-red-600 mt-0.5 text-[22px]">error</span>
+        <div>
+          <h4 class="font-bold text-xs sm:text-sm text-red-900">Kendala Sinkronisasi Cloud Firestore</h4>
+          <p class="mt-1 text-xs text-red-700 leading-relaxed">{{ masterCandidatesError }}</p>
+        </div>
+      </div>
+      <button
+        type="button"
+        @click="fetchMasterCandidates(true)"
+        class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-sm transition cursor-pointer shrink-0"
+      >
+        <span class="material-symbols-outlined text-[16px]">refresh</span>
+        Coba Lagi
+      </button>
+    </div>
+
+    <!-- Loading State Skeleton -->
+    <section v-if="masterCandidatesLoading && masterCandidatesDatabase.length === 0" class="rounded-2xl border border-slate-200 bg-white p-12 text-center space-y-4 shadow-sm">
+      <div class="inline-flex h-12 w-12 animate-spin items-center justify-center rounded-full border-4 border-purple-200 border-t-[#582be8]"></div>
+      <div>
+        <h3 class="text-sm font-bold text-slate-800">Menghubungkan ke Cloud Firestore...</h3>
+        <p class="mt-1 text-xs text-slate-500">Memuat data master kandidat dari koleksi master_candidates.</p>
       </div>
     </section>
 
@@ -701,7 +813,7 @@ function confirmDeleteCandidate() {
                   class="flex h-12 w-12 items-center justify-center rounded-2xl text-xl font-extrabold text-white shadow-sm"
                   :style="{ backgroundColor: c.color || '#582be8' }"
                 >
-                  {{ c.ballotNumber }}
+                  {{ c.ballotNumber && c.ballotNumber !== '-' ? c.ballotNumber : '—' }}
                 </div>
                 <div>
                   <div class="flex items-center gap-1.5 flex-wrap">
@@ -888,7 +1000,7 @@ function confirmDeleteCandidate() {
           <tbody class="divide-y divide-slate-100 text-xs sm:text-sm">
             <tr v-for="c in singleCandidates" :key="c.id" class="hover:bg-slate-50/70 transition">
               <td class="px-4 py-4 font-mono font-bold text-[#582be8]">
-                #{{ c.ballotNumber }}
+                {{ c.ballotNumber && c.ballotNumber !== '-' ? '#' + c.ballotNumber : '—' }}
               </td>
 
               <td class="px-4 py-4">
@@ -1085,7 +1197,8 @@ function confirmDeleteCandidate() {
                 <label class="block font-semibold text-slate-700 mb-1">Agenda Pemilihan Terkait</label>
                 <select
                   v-model="candidateForm.electionId"
-                  :disabled="candidateModalMode === 'edit'"
+                  @change="onElectionChange"
+                  :disabled="candidateModalMode === 'edit' && candidateForm.electionId !== 'none'"
                   class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-medium outline-none focus:border-[#582be8]"
                 >
                   <option value="none">Simpan sebagai Master Data Saja (Tanpa terikat Pemilihan)</option>
@@ -1138,17 +1251,28 @@ function confirmDeleteCandidate() {
               <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label class="block font-semibold text-slate-700 mb-1">
-                    Nomor Urut Resmi <span class="text-red-500">*</span>
+                    Nomor Urut Resmi <span v-if="candidateForm.electionId !== 'none'" class="text-red-500">*</span>
                   </label>
-                  <input
-                    v-model="candidateForm.ballotNumber"
-                    type="text"
-                    placeholder="01"
-                    maxlength="3"
-                    class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-[#582be8] font-mono font-bold text-center outline-none"
-                    required
-                  />
-                  <p class="text-[10px] text-slate-400 mt-1">Unik di pemilihan ini</p>
+                  <div v-if="candidateForm.electionId === 'none'">
+                    <input
+                      type="text"
+                      value="— Ditetapkan Saat Ikut Agenda Pemilihan —"
+                      disabled
+                      class="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-100 text-slate-400 font-medium text-center text-xs cursor-not-allowed select-none"
+                    />
+                    <p class="text-[10px] text-slate-400 mt-1">Nomor urut dikelola per agenda pemilihan.</p>
+                  </div>
+                  <div v-else>
+                    <input
+                      v-model="candidateForm.ballotNumber"
+                      type="text"
+                      placeholder="01"
+                      maxlength="3"
+                      class="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-[#582be8] font-mono font-bold text-center outline-none"
+                      required
+                    />
+                    <p class="text-[10px] text-slate-400 mt-1">Unik di pemilihan ini</p>
+                  </div>
                 </div>
 
                 <div class="sm:col-span-2">
@@ -1382,16 +1506,19 @@ function confirmDeleteCandidate() {
               <button
                 type="button"
                 @click="showCandidateModal = false"
-                class="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 transition cursor-pointer"
+                :disabled="isSavingCandidate"
+                class="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 transition cursor-pointer disabled:opacity-50"
               >
                 Batal
               </button>
               <button
                 type="button"
                 @click="saveCandidateForm"
-                class="px-5 py-2 text-xs font-semibold text-white bg-[#582be8] hover:bg-[#471ec7] rounded-xl shadow-md shadow-purple-600/25 transition cursor-pointer"
+                :disabled="isSavingCandidate"
+                class="inline-flex items-center gap-2 px-5 py-2 text-xs font-semibold text-white bg-[#582be8] hover:bg-[#471ec7] rounded-xl shadow-md shadow-purple-600/25 transition cursor-pointer disabled:opacity-50"
               >
-                {{ candidateModalMode === 'create' ? 'Simpan Data Kandidat' : 'Perbarui Kandidat' }}
+                <span v-if="isSavingCandidate" class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
+                <span>{{ isSavingCandidate ? 'Menyimpan...' : (candidateModalMode === 'create' ? 'Simpan Data Kandidat' : 'Perbarui Kandidat') }}</span>
               </button>
             </div>
           </div>
@@ -1568,10 +1695,10 @@ function confirmDeleteCandidate() {
 
               <div v-else class="mt-2 text-xs text-slate-500 leading-relaxed">
                 <p>
-                  Apakah Anda yakin ingin menghapus calon <strong class="text-slate-900">{{ candidateToDelete.name }}</strong> (Nomor Urut <strong class="text-slate-900 font-mono">#{{ candidateToDelete.ballotNumber }}</strong>) dari agenda <strong>#{{ candidateToDelete.electionId }}</strong>?
+                  Apakah Anda yakin ingin menghapus data master calon <strong class="text-slate-900">{{ candidateToDelete.name }}</strong> dari Cloud Firestore?
                 </p>
                 <p class="mt-2 text-[11px] text-red-600 font-medium">
-                  Tindakan ini permanen dan nomor urut akan tersedia kembali untuk calon lain.
+                  Tindakan ini permanen. Dokumen master kandidat akan dihapus dari sistem Cloud Firestore.
                 </p>
               </div>
             </div>
@@ -1580,7 +1707,8 @@ function confirmDeleteCandidate() {
               <button
                 type="button"
                 @click="showDeleteCandidateModal = false"
-                class="flex-1 px-4 py-2.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition cursor-pointer"
+                :disabled="isDeletingCandidate"
+                class="flex-1 px-4 py-2.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition cursor-pointer disabled:opacity-50"
               >
                 {{ deleteValidation.allowed ? 'Batal' : 'Tutup' }}
               </button>
@@ -1589,9 +1717,11 @@ function confirmDeleteCandidate() {
                 v-if="deleteValidation.allowed"
                 type="button"
                 @click="confirmDeleteCandidate"
-                class="flex-1 px-4 py-2.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-md shadow-red-600/25 transition cursor-pointer"
+                :disabled="isDeletingCandidate"
+                class="inline-flex items-center justify-center gap-2 flex-1 px-4 py-2.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-md shadow-red-600/25 transition cursor-pointer disabled:opacity-50"
               >
-                Ya, Hapus Kandidat
+                <span v-if="isDeletingCandidate" class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
+                <span>{{ isDeletingCandidate ? 'Menghapus...' : 'Ya, Hapus Kandidat' }}</span>
               </button>
             </div>
           </div>

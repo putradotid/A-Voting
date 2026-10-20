@@ -1,3 +1,14 @@
+import { computed } from 'vue'
+import {
+  collection,
+  doc,
+  getDocs,
+  setDoc,
+  deleteDoc,
+  type Firestore,
+  type DocumentData
+} from 'firebase/firestore'
+
 export type CandidateType = 'pair' | 'single'
 
 export type CandidateVerificationStatus =
@@ -69,11 +80,131 @@ export interface ElectionCandidate extends MasterCandidate {
   participationUpdatedAt?: string
 }
 
-export const useElectionCandidates = () => {
-  // ── Master Candidates Database ───────────────────────────────────────────
-  const masterCandidatesDatabase = useState<MasterCandidate[]>('masterCandidatesDatabase', () => [
-    {
-      id: 'mcand-01',
+// ── Helper: Normalisasi Dokumen Firestore ke MasterCandidate ──────────────────
+export function normalizeFirestoreCandidate(id: string, data: DocumentData): MasterCandidate {
+  const parseDate = (val: any): string => {
+    if (!val) return new Date().toISOString()
+    if (typeof val.toDate === 'function') {
+      return val.toDate().toISOString()
+    }
+    if (typeof val === 'string') {
+      return val
+    }
+    if (typeof val === 'number') {
+      return new Date(val).toISOString()
+    }
+    return new Date().toISOString()
+  }
+
+  const rawLead = data.leadCandidate || {}
+  const leadCandidate: CandidatePerson = {
+    name: String(rawLead.name || '').trim(),
+    nim: String(rawLead.nim || '').trim(),
+    faculty: String(rawLead.faculty || '').trim(),
+    major: String(rawLead.major || '').trim(),
+    semester: typeof rawLead.semester === 'number' ? rawLead.semester : Number(rawLead.semester) || 6,
+    gpa: typeof rawLead.gpa === 'number' ? rawLead.gpa : Number(rawLead.gpa) || 3.5
+  }
+  if (rawLead.studentId) leadCandidate.studentId = String(rawLead.studentId).trim()
+  if (rawLead.facultyCode) leadCandidate.facultyCode = String(rawLead.facultyCode).trim()
+
+  let viceCandidate: CandidatePerson | undefined = undefined
+  if (data.type === 'pair' && data.viceCandidate) {
+    const rawVice = data.viceCandidate
+    viceCandidate = {
+      name: String(rawVice.name || '').trim(),
+      nim: String(rawVice.nim || '').trim(),
+      faculty: String(rawVice.faculty || '').trim(),
+      major: String(rawVice.major || '').trim(),
+      semester: typeof rawVice.semester === 'number' ? rawVice.semester : Number(rawVice.semester) || 6,
+      gpa: typeof rawVice.gpa === 'number' ? rawVice.gpa : Number(rawVice.gpa) || 3.5
+    }
+    if (rawVice.studentId) viceCandidate.studentId = String(rawVice.studentId).trim()
+    if (rawVice.facultyCode) viceCandidate.facultyCode = String(rawVice.facultyCode).trim()
+  }
+
+  const misi = Array.isArray(data.misi)
+    ? data.misi.map((m: any) => String(m).trim()).filter(Boolean)
+    : []
+
+  const pillars = Array.isArray(data.pillars)
+    ? data.pillars.map((p: any) => String(p).trim()).filter(Boolean)
+    : []
+
+  const documents: CandidateRequirementDoc[] = Array.isArray(data.documents)
+    ? data.documents.map((doc: any) => {
+        const item: CandidateRequirementDoc = {
+          name: String(doc.name || 'Dokumen Persyaratan'),
+          status: (doc.status === 'valid' || doc.status === 'pending' || doc.status === 'rejected') ? doc.status : 'pending'
+        }
+        if (doc.note) {
+          item.note = String(doc.note).trim()
+        }
+        return item
+      })
+    : [
+        { name: 'KRS & Transkrip IPK (≥ 3.25)', status: leadCandidate.gpa && leadCandidate.gpa >= 3.25 ? 'valid' : 'pending' },
+        { name: 'Surat Bebas Sanksi Akademik & SKCK', status: 'valid' },
+        { name: 'Dukungan Mahasiswa Sah', status: 'valid' }
+      ]
+
+  const mapped: MasterCandidate = {
+    id,
+    type: data.type === 'single' ? 'single' : 'pair',
+    name: String(data.name || '').trim(),
+    leadCandidate,
+    tagline: String(data.tagline || '').trim(),
+    photo: String(data.photo || '').trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+    color: String(data.color || '#582be8').trim(),
+    coalition: String(data.coalition || '').trim() || (data.type === 'pair' ? 'Koalisi Paslon' : 'Independen'),
+    visi: String(data.visi || '').trim(),
+    misi,
+    pillars,
+    documents,
+    createdAt: parseDate(data.createdAt)
+  }
+  if (viceCandidate) {
+    mapped.viceCandidate = viceCandidate
+  }
+  if (data.updatedAt) {
+    mapped.updatedAt = parseDate(data.updatedAt)
+  }
+  return mapped
+}
+
+// ── Helper: Menghapus nilai undefined secara rekursif agar payload Firestore valid ──
+export function cleanFirestorePayload(val: any): any {
+  if (val === undefined) {
+    return undefined
+  }
+  if (val === null || typeof val !== 'object') {
+    return val
+  }
+  if (val instanceof Date) {
+    return val
+  }
+  if (Array.isArray(val)) {
+    return val
+      .map(item => cleanFirestorePayload(item))
+      .filter(item => item !== undefined)
+  }
+  const result: Record<string, any> = {}
+  for (const [key, value] of Object.entries(val)) {
+    if (value === undefined) {
+      continue
+    }
+    const cleaned = cleanFirestorePayload(value)
+    if (cleaned !== undefined) {
+      result[key] = cleaned
+    }
+  }
+  return result
+}
+
+// ── Master Candidate Seed Data (Referensi Pengembangan) ──────────────────────
+export const SEED_MASTER_CANDIDATES: MasterCandidate[] = [
+  {
+    id: 'mcand-01',
       type: 'pair',
       name: 'Farhan & Nabila',
       leadCandidate: {
@@ -519,7 +650,70 @@ export const useElectionCandidates = () => {
       ],
       createdAt: '2025-02-12T14:00:00'
     }
-  ])
+]
+
+export const useElectionCandidates = () => {
+  const nuxtApp = useNuxtApp()
+
+  const getDb = (): Firestore | null => {
+    if (!import.meta.client) return null
+    try {
+      return (nuxtApp.$firestore || nuxtApp.$db) as Firestore | null
+    } catch {
+      return null
+    }
+  }
+
+  // ── Master Candidates Database (Koleksi Firestore: master_candidates) ────
+  // State dimulai dari array kosong. Data dimuat dari Firestore melalui fetchMasterCandidates().
+  const masterCandidatesDatabase = useState<MasterCandidate[]>('masterCandidatesDatabase', () => [])
+  const masterCandidatesLoading = useState<boolean>('masterCandidatesLoading', () => false)
+  const masterCandidatesError = useState<string | null>('masterCandidatesError', () => null)
+  const masterCandidatesLoaded = useState<boolean>('masterCandidatesLoaded', () => false)
+
+  const fetchMasterCandidates = async (force = false): Promise<MasterCandidate[]> => {
+    if (!import.meta.client) {
+      return masterCandidatesDatabase.value
+    }
+
+    if (masterCandidatesLoaded.value && !force && masterCandidatesDatabase.value.length > 0) {
+      return masterCandidatesDatabase.value
+    }
+
+    const db = getDb()
+    if (!db) {
+      masterCandidatesError.value = 'Layanan Cloud Firestore belum siap atau tidak tersedia di klien.'
+      masterCandidatesLoading.value = false
+      return []
+    }
+
+    masterCandidatesLoading.value = true
+    masterCandidatesError.value = null
+
+    try {
+      const colRef = collection(db, 'master_candidates')
+      const snapshot = await getDocs(colRef)
+      const loaded: MasterCandidate[] = snapshot.docs.map(docSnap => {
+        return normalizeFirestoreCandidate(docSnap.id, docSnap.data())
+      })
+      masterCandidatesDatabase.value = loaded
+      masterCandidatesLoaded.value = true
+      return loaded
+    } catch (err: any) {
+      console.error('[useElectionCandidates] Gagal membaca koleksi master_candidates dari Firestore:', err)
+      let msg = err.message || 'Gagal memuat data master kandidat dari Cloud Firestore.'
+      if (err.code === 'permission-denied') {
+        msg = 'Akses Firestore ditolak (Permission Denied). Pastikan Anda telah login sebagai admin terdaftar.'
+      } else if (err.code === 'unavailable') {
+        msg = 'Tidak dapat terhubung ke Cloud Firestore. Periksa koneksi internet Anda.'
+      }
+      masterCandidatesError.value = msg
+      // PERINGATAN: Jangan diam-diam mengisi seed data saat Firestore gagal dibaca
+      return []
+    } finally {
+      masterCandidatesLoading.value = false
+    }
+  }
 
   // ── Election Candidate Participations Database ───────────────────────────
   // Menyimpan 10 data relasi seed yang mempertahankan ID awal (`cand-pemXX-XX`)
@@ -740,18 +934,25 @@ export const useElectionCandidates = () => {
     excludeParticipationId?: string
   ): boolean => {
     const cleanNumber = ballotNumber.trim().padStart(2, '0')
-    return !electionCandidateParticipationsDatabase.value.some(
-      p => p.electionId === electionId &&
-           p.id !== excludeParticipationId &&
-           p.ballotNumber.trim().padStart(2, '0') === cleanNumber
-    )
+    const validCandidates = getCandidatesByElection(electionId)
+    return !validCandidates.some(c => {
+      if (
+        excludeParticipationId &&
+        (c.participationId === excludeParticipationId ||
+         c.id === excludeParticipationId ||
+         c.candidateId === excludeParticipationId)
+      ) {
+        return false // Exclude candidate currently being edited
+      }
+      return c.ballotNumber.trim().padStart(2, '0') === cleanNumber
+    })
   }
 
   // Cari nomor urut berikutnya yang tersedia pada suatu Election
   const getNextAvailableBallotNumber = (electionId: string): string => {
-    const existing = electionCandidateParticipationsDatabase.value
-      .filter(p => p.electionId === electionId)
-      .map(p => parseInt(p.ballotNumber, 10))
+    const validCandidates = getCandidatesByElection(electionId)
+    const existing = validCandidates
+      .map(c => parseInt(c.ballotNumber, 10))
       .filter(n => !isNaN(n))
     
     let candidateNum = 1
@@ -759,6 +960,27 @@ export const useElectionCandidates = () => {
       candidateNum++
     }
     return String(candidateNum).padStart(2, '0')
+  }
+
+  // ── Validation: Aturan Penghapusan Master Kandidat ──────────────────────
+  const canDeleteMasterCandidate = (
+    candidateId: string
+  ): { allowed: boolean; reason?: string } => {
+    const master = masterCandidatesDatabase.value.find(m => m.id === candidateId)
+    if (!master) {
+      return { allowed: false, reason: 'Data master kandidat tidak ditemukan dalam sistem.' }
+    }
+
+    const activeParts = getMasterCandidateParticipations(candidateId)
+    if (activeParts.length > 0) {
+      const electionIds = activeParts.map(p => p.electionId).join(', ')
+      return {
+        allowed: false,
+        reason: `Kandidat masih berpartisipasi dalam agenda pemilihan (${electionIds}). Cabut keikutsertaan kandidat dari agenda pemilihan terkait terlebih dahulu sebelum menghapus data master.`
+      }
+    }
+
+    return { allowed: true }
   }
 
   // ── Validation: Aturan Penghapusan Partisipasi / Kandidat ────────────────
@@ -772,6 +994,11 @@ export const useElectionCandidates = () => {
     )
 
     if (!part) {
+      // Jika dipanggil dengan ID master kandidat tanpa partisipasi
+      const master = masterCandidatesDatabase.value.find(m => m.id === participationOrCandidateId)
+      if (master) {
+        return canDeleteMasterCandidate(master.id)
+      }
       return { allowed: false, reason: 'Kandidat / keikutsertaan tidak ditemukan dalam sistem.' }
     }
 
@@ -799,10 +1026,10 @@ export const useElectionCandidates = () => {
     return { allowed: true }
   }
 
-  // ── Mutation Master: Tambah Master Kandidat ──────────────────────────────
-  const addMasterCandidate = (
+  // ── Mutation Master: Tambah Master Kandidat ke Firestore ────────────────
+  const addMasterCandidate = async (
     data: Omit<MasterCandidate, 'id' | 'createdAt'>
-  ): { success: boolean; message: string; candidate?: MasterCandidate } => {
+  ): Promise<{ success: boolean; message: string; candidate?: MasterCandidate }> => {
     if (!data.name.trim()) {
       return { success: false, message: 'Nama paslon atau kandidat wajib diisi.' }
     }
@@ -815,67 +1042,119 @@ export const useElectionCandidates = () => {
       }
     }
 
-    const newId = `mcand-${Date.now().toString().slice(-4)}`
-    const newMaster: MasterCandidate = {
-      ...data,
-      id: newId,
-      name: data.name.trim(),
-      tagline: data.tagline.trim(),
-      coalition: data.coalition.trim() || (data.type === 'pair' ? 'Koalisi Paslon' : 'Independen'),
-      color: data.color || '#582be8',
-      photo: data.photo.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
-      visi: data.visi.trim() || 'Mewujudkan kepemimpinan mahasiswa yang berintegritas dan berdampak nyata.',
-      misi: data.misi.length > 0 ? data.misi : ['Digitalisasi layanan administrasi kemahasiswaan.'],
-      pillars: data.pillars.length > 0 ? data.pillars : ['Tata Kelola Organisasi Transparan', 'Advokasi Mahasiswa'],
-      documents: data.documents || [
-        { name: 'KRS & Transkrip IPK (≥ 3.25)', status: 'valid', note: 'Berkas master sah' },
-        { name: 'Surat Bebas Sanksi Akademik & SKCK', status: 'valid', note: 'Terverifikasi' },
-        { name: 'Dukungan Mahasiswa Sah', status: 'valid', note: 'Lengkap' }
-      ],
-      createdAt: new Date().toISOString()
+    const db = getDb()
+    if (!db) {
+      return {
+        success: false,
+        message: 'Layanan Cloud Firestore belum siap atau tidak tersedia di klien.'
+      }
     }
 
-    masterCandidatesDatabase.value.push(newMaster)
-    return {
-      success: true,
-      message: `Master data kandidat "${newMaster.name}" berhasil didaftarkan.`,
-      candidate: newMaster
+    try {
+      // Konsistensi ID: ID dokumen Firestore adalah persis ID kandidat yang digunakan aplikasi
+      const colRef = collection(db, 'master_candidates')
+      const docRef = doc(colRef)
+      const newId = docRef.id
+
+      const newMaster: MasterCandidate = {
+        ...data,
+        id: newId,
+        name: data.name.trim(),
+        tagline: data.tagline.trim(),
+        coalition: data.coalition.trim() || (data.type === 'pair' ? 'Koalisi Paslon' : 'Independen'),
+        color: data.color || '#582be8',
+        photo: data.photo.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+        visi: data.visi.trim() || 'Mewujudkan kepemimpinan mahasiswa yang berintegritas dan berdampak nyata.',
+        misi: data.misi.length > 0 ? data.misi : ['Digitalisasi layanan administrasi kemahasiswaan.'],
+        pillars: data.pillars.length > 0 ? data.pillars : ['Tata Kelola Organisasi Transparan', 'Advokasi Mahasiswa'],
+        documents: data.documents || [
+          { name: 'KRS & Transkrip IPK (≥ 3.25)', status: 'valid', note: 'Berkas master sah' },
+          { name: 'Surat Bebas Sanksi Akademik & SKCK', status: 'valid', note: 'Terverifikasi' },
+          { name: 'Dukungan Mahasiswa Sah', status: 'valid', note: 'Lengkap' }
+        ],
+        createdAt: new Date().toISOString()
+      }
+
+      if (newMaster.type === 'single') {
+        delete newMaster.viceCandidate
+      }
+
+      const payload = cleanFirestorePayload(newMaster)
+      await setDoc(docRef, payload)
+
+      masterCandidatesDatabase.value.push(newMaster)
+      return {
+        success: true,
+        message: `Master data kandidat "${newMaster.name}" berhasil didaftarkan ke Firestore.`,
+        candidate: newMaster
+      }
+    } catch (err: any) {
+      console.error('[useElectionCandidates] Gagal menambahkan master kandidat ke Firestore:', err)
+      const msg = err.code === 'permission-denied'
+        ? 'Gagal menyimpan ke Firestore: Akses ditolak (Permission Denied). Pastikan akun Anda memiliki akses admin.'
+        : (err.message || 'Terjadi kesalahan saat menyimpan master kandidat ke Firestore.')
+      return { success: false, message: msg }
     }
   }
 
-  // ── Mutation Master: Update Master Kandidat ──────────────────────────────
-  const updateMasterCandidate = (
+  // ── Mutation Master: Update Master Kandidat di Firestore ─────────────────
+  const updateMasterCandidate = async (
     id: string,
     updates: Partial<Omit<MasterCandidate, 'id' | 'createdAt'>>
-  ): { success: boolean; message: string; candidate?: MasterCandidate } => {
+  ): Promise<{ success: boolean; message: string; candidate?: MasterCandidate }> => {
     const idx = masterCandidatesDatabase.value.findIndex(m => m.id === id)
     if (idx === -1) {
       return { success: false, message: 'Master kandidat tidak ditemukan.' }
     }
 
-    const existing = masterCandidatesDatabase.value[idx]
-    const updated: MasterCandidate = {
-      ...existing,
-      ...updates,
-      updatedAt: new Date().toISOString()
+    const db = getDb()
+    if (!db) {
+      return { success: false, message: 'Layanan Cloud Firestore belum siap atau tidak tersedia.' }
     }
 
-    if (updated.type === 'single') {
-      delete updated.viceCandidate
-    }
+    try {
+      const existing = masterCandidatesDatabase.value[idx]
+      const updated: MasterCandidate = {
+        ...existing,
+        ...updates,
+        updatedAt: new Date().toISOString()
+      }
 
-    masterCandidatesDatabase.value[idx] = updated
-    return {
-      success: true,
-      message: `Data master kandidat "${updated.name}" berhasil diperbarui.`,
-      candidate: updated
+      if (updated.type === 'single') {
+        delete updated.viceCandidate
+      }
+
+      const docRef = doc(db, 'master_candidates', id)
+      const payload = cleanFirestorePayload(updated)
+
+      if (process.dev) {
+        const hasUndefined = Object.entries(payload).some(([_, v]) => v === undefined)
+        if (hasUndefined) {
+          console.warn('[useElectionCandidates] Peringatan: Terdapat field undefined pada payload update master_candidates')
+        }
+      }
+
+      await setDoc(docRef, payload)
+
+      masterCandidatesDatabase.value[idx] = updated
+      return {
+        success: true,
+        message: `Data master kandidat "${updated.name}" berhasil diperbarui di Firestore.`,
+        candidate: updated
+      }
+    } catch (err: any) {
+      console.error('[useElectionCandidates] Gagal memperbarui master kandidat di Firestore:', err)
+      const msg = err.code === 'permission-denied'
+        ? 'Gagal memperbarui: Akses Firestore ditolak (Permission Denied).'
+        : (err.message || 'Terjadi kesalahan saat memperbarui data master kandidat.')
+      return { success: false, message: msg }
     }
   }
 
-  // ── Mutation Master: Hapus Master Kandidat ───────────────────────────────
-  const deleteMasterCandidate = (
+  // ── Mutation Master: Hapus Master Kandidat dari Firestore ────────────────
+  const deleteMasterCandidate = async (
     candidateId: string
-  ): { success: boolean; message: string } => {
+  ): Promise<{ success: boolean; message: string }> => {
     const activeParticipations = electionCandidateParticipationsDatabase.value.filter(
       p => p.candidateId === candidateId
     )
@@ -893,12 +1172,27 @@ export const useElectionCandidates = () => {
       return { success: false, message: 'Master kandidat tidak ditemukan.' }
     }
 
-    const name = masterCandidatesDatabase.value[idx].name
-    masterCandidatesDatabase.value.splice(idx, 1)
+    const db = getDb()
+    if (!db) {
+      return { success: false, message: 'Layanan Cloud Firestore belum siap atau tidak tersedia.' }
+    }
 
-    return {
-      success: true,
-      message: `Master kandidat "${name}" berhasil dihapus dari sistem.`
+    try {
+      const name = masterCandidatesDatabase.value[idx].name
+      const docRef = doc(db, 'master_candidates', candidateId)
+      await deleteDoc(docRef)
+
+      masterCandidatesDatabase.value.splice(idx, 1)
+      return {
+        success: true,
+        message: `Master kandidat "${name}" berhasil dihapus dari Firestore.`
+      }
+    } catch (err: any) {
+      console.error('[useElectionCandidates] Gagal menghapus master kandidat dari Firestore:', err)
+      const msg = err.code === 'permission-denied'
+        ? 'Gagal menghapus: Akses Firestore ditolak (Permission Denied).'
+        : (err.message || 'Terjadi kesalahan saat menghapus data master kandidat.')
+      return { success: false, message: msg }
     }
   }
 
@@ -972,7 +1266,7 @@ export const useElectionCandidates = () => {
 
     return {
       success: true,
-      message: `Kandidat "${candName}" (#${removedPart.ballotNumber}) berhasil dicabut dari agenda ${electionId}. Master kandidat tetap tersimpan aman.`
+      message: `Kandidat "${candName}" (#${removedPart.ballotNumber}) berhasil dicabut dari agenda ${electionId}. Master kandidat tetap tersimpan aman di Firestore.`
     }
   }
 
@@ -1020,20 +1314,32 @@ export const useElectionCandidates = () => {
 
   // ── Backward-Compatibility Helpers ───────────────────────────────────────
   // Mempertahankan addCandidate() untuk kode lama atau pendaftaran master sekaligus
-  const addCandidate = (
+  const addCandidate = async (
     data: Omit<ElectionCandidate, 'id' | 'createdAt' | 'isInBallot' | 'participationId' | 'candidateId'> & {
       isInBallot?: boolean
       candidateId?: string
     }
-  ): { success: boolean; message: string; candidate?: ElectionCandidate } => {
+  ): Promise<{ success: boolean; message: string; candidate?: ElectionCandidate }> => {
     if (!data.electionId) {
       return { success: false, message: 'ID pemilihan (electionId) wajib disertakan.' }
     }
 
-    // 1. Cek atau Buat Master Candidate
+    // 1. Cek validitas & ketersediaan nomor urut sebelum membuat dokumen Firestore
+    const ballotNum = (data.ballotNumber || '').trim().padStart(2, '0')
+    if (!ballotNum || ballotNum === '00') {
+      return { success: false, message: 'Nomor urut resmi tidak valid atau kosong.' }
+    }
+    if (!isBallotNumberAvailable(data.electionId, ballotNum)) {
+      return {
+        success: false,
+        message: `Nomor urut #${ballotNum} sudah digunakan oleh calon lain pada pemilihan ini. Pilih nomor urut lain.`
+      }
+    }
+
+    // 2. Cek atau Buat Master Candidate di Firestore
     let masterId = data.candidateId
     if (!masterId) {
-      const masterRes = addMasterCandidate({
+      const masterRes = await addMasterCandidate({
         type: data.type,
         name: data.name,
         leadCandidate: data.leadCandidate,
@@ -1053,18 +1359,9 @@ export const useElectionCandidates = () => {
       masterId = masterRes.candidate.id
     }
 
-    // 2. Cek apakah sudah terdaftar di election ini
+    // 3. Cek apakah sudah terdaftar di election ini
     if (isCandidateInElection(data.electionId, masterId)) {
       return { success: false, message: 'Kandidat ini sudah terdaftar pada agenda pemilihan tersebut.' }
-    }
-
-    // 3. Cek nomor urut
-    const ballotNum = data.ballotNumber.trim().padStart(2, '0')
-    if (!isBallotNumberAvailable(data.electionId, ballotNum)) {
-      return {
-        success: false,
-        message: `Nomor urut #${ballotNum} sudah digunakan oleh calon lain pada pemilihan ini. Pilih nomor urut lain.`
-      }
     }
 
     const isInBallot = data.status === 'Terverifikasi KPU'
@@ -1090,10 +1387,10 @@ export const useElectionCandidates = () => {
     }
   }
 
-  const updateCandidate = (
+  const updateCandidate = async (
     id: string,
     updates: Partial<Omit<ElectionCandidate, 'id' | 'electionId' | 'createdAt'>>
-  ): { success: boolean; message: string; candidate?: ElectionCandidate } => {
+  ): Promise<{ success: boolean; message: string; candidate?: ElectionCandidate }> => {
     // 1. Cari partisipasi
     let part = electionCandidateParticipationsDatabase.value.find(p => p.id === id)
     if (!part) {
@@ -1101,20 +1398,21 @@ export const useElectionCandidates = () => {
     }
 
     if (part) {
-      // Update partisipasi (ballotNumber, status, isInBallot)
-      const partUpdates: Partial<ElectionCandidateParticipation> = {}
-      if (updates.ballotNumber !== undefined) partUpdates.ballotNumber = updates.ballotNumber
-      if (updates.status !== undefined) partUpdates.status = updates.status
-      if (updates.isInBallot !== undefined) partUpdates.isInBallot = updates.isInBallot
+      const partIdx = electionCandidateParticipationsDatabase.value.findIndex(p => p.id === part!.id)
+      const originalPart = { ...part }
 
-      if (Object.keys(partUpdates).length > 0) {
-        const partRes = updateCandidateParticipation(part.id, partUpdates)
-        if (!partRes.success) {
-          return { success: false, message: partRes.message }
+      // Validasi ketersediaan nomor urut terlebih dahulu jika diubah
+      if (updates.ballotNumber !== undefined && updates.ballotNumber.trim() !== '') {
+        const cleanNum = updates.ballotNumber.trim().padStart(2, '0')
+        if (!isBallotNumberAvailable(part.electionId, cleanNum, part.id)) {
+          return {
+            success: false,
+            message: `Nomor urut #${cleanNum} sudah digunakan oleh kandidat lain dalam pemilihan ini.`
+          }
         }
       }
 
-      // Update profil master jika ada perubahan field master
+      // 1. Update profil master di Cloud Firestore TERLEBIH DAHULU sebelum mengubah state lokal
       const masterUpdates: Partial<MasterCandidate> = {}
       if (updates.name !== undefined) masterUpdates.name = updates.name
       if (updates.type !== undefined) masterUpdates.type = updates.type
@@ -1130,13 +1428,36 @@ export const useElectionCandidates = () => {
       if (updates.documents !== undefined) masterUpdates.documents = updates.documents
 
       if (Object.keys(masterUpdates).length > 0) {
-        updateMasterCandidate(part.candidateId, masterUpdates)
+        const masterRes = await updateMasterCandidate(part.candidateId, masterUpdates)
+        if (!masterRes.success) {
+          // Gagal di Firestore: batalkan seluruh proses dan jangan modifikasi partisipasi lokal
+          if (partIdx !== -1) {
+            electionCandidateParticipationsDatabase.value[partIdx] = originalPart
+          }
+          return { success: false, message: masterRes.message }
+        }
       }
 
-      const refreshed = hydrateParticipation(part)
+      // 2. SETELAH Firestore sukses, update data keikutsertaan / nomor urut lokal
+      const partUpdates: Partial<ElectionCandidateParticipation> = {}
+      if (updates.ballotNumber !== undefined) partUpdates.ballotNumber = updates.ballotNumber
+      if (updates.status !== undefined) partUpdates.status = updates.status
+      if (updates.isInBallot !== undefined) partUpdates.isInBallot = updates.isInBallot
+
+      if (Object.keys(partUpdates).length > 0) {
+        const partRes = updateCandidateParticipation(part.id, partUpdates)
+        if (!partRes.success) {
+          if (partIdx !== -1) {
+            electionCandidateParticipationsDatabase.value[partIdx] = originalPart
+          }
+          return { success: false, message: partRes.message }
+        }
+      }
+
+      const refreshed = hydrateParticipation(electionCandidateParticipationsDatabase.value[partIdx])
       return {
         success: true,
-        message: `Data kandidat "${refreshed?.name || ''}" berhasil diperbarui.`,
+        message: `Data profil master kandidat "${refreshed?.name || ''}" berhasil diperbarui di Firestore dan nomor paslon aktif pada sesi ini.`,
         candidate: refreshed || undefined
       }
     }
@@ -1144,7 +1465,7 @@ export const useElectionCandidates = () => {
     // Jika yang diedit langsung master candidate ID
     const master = masterCandidatesDatabase.value.find(m => m.id === id)
     if (master) {
-      const res = updateMasterCandidate(id, updates as any)
+      const res = await updateMasterCandidate(id, updates as any)
       return {
         success: res.success,
         message: res.message
@@ -1154,10 +1475,10 @@ export const useElectionCandidates = () => {
     return { success: false, message: 'Kandidat tidak ditemukan.' }
   }
 
-  const deleteCandidate = (
+  const deleteCandidate = async (
     candidateIdOrPartId: string,
     electionStatus?: string
-  ): { success: boolean; message: string } => {
+  ): Promise<{ success: boolean; message: string }> => {
     // Cari apakah ini partisipasi
     const part = electionCandidateParticipationsDatabase.value.find(
       p => p.id === candidateIdOrPartId || p.candidateId === candidateIdOrPartId
@@ -1168,7 +1489,7 @@ export const useElectionCandidates = () => {
     }
 
     // Jika murni master candidate tanpa partisipasi
-    return deleteMasterCandidate(candidateIdOrPartId)
+    return await deleteMasterCandidate(candidateIdOrPartId)
   }
 
   // ── Statistics Helper ───────────────────────────────────────────────────
@@ -1191,6 +1512,9 @@ export const useElectionCandidates = () => {
   return {
     // State Databases
     masterCandidatesDatabase,
+    masterCandidatesLoading,
+    masterCandidatesError,
+    fetchMasterCandidates,
     electionCandidateParticipationsDatabase,
     candidatesDatabase,
 
@@ -1214,6 +1538,7 @@ export const useElectionCandidates = () => {
     updateCandidateParticipation,
 
     // Shared & Backward Compatibility Operations
+    canDeleteMasterCandidate,
     canDeleteCandidate,
     addCandidate,
     updateCandidate,

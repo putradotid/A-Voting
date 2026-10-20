@@ -9,7 +9,7 @@ definePageMeta({
 const route = useRoute()
 const router = useRouter()
 
-// ─── Interfaces & Composables ────────────────────────────────────────
+import { onMounted } from 'vue'
 import type {
   ElectionCandidate,
   CandidateType,
@@ -406,6 +406,7 @@ function triggerToast(msg: string) {
 // ─── Candidate Management per Election (Composable) ───────────────────
 const {
   masterCandidatesDatabase,
+  fetchMasterCandidates,
   getCandidatesByElection,
   getCandidateStats,
   isCandidateInElection,
@@ -417,6 +418,10 @@ const {
   deleteCandidate,
   canDeleteCandidate
 } = useElectionCandidates()
+
+onMounted(async () => {
+  await fetchMasterCandidates()
+})
 
 // ─── Modal State: Pilih Kandidat Master ke Election ───────────────────
 const showSelectCandidateModal = ref(false)
@@ -639,7 +644,7 @@ function openEditCandidateModal(c: ElectionCandidate) {
   showCandidateModal.value = true
 }
 
-function saveCandidateForm() {
+async function saveCandidateForm() {
   candidateFormError.value = ''
   const f = candidateForm.value
 
@@ -666,7 +671,7 @@ function saveCandidateForm() {
   const pillars = f.pillarsText.split('\n').map(s => s.trim()).filter(Boolean)
 
   if (candidateModalMode.value === 'create') {
-    const res = addCandidate({
+    const res = await addCandidate({
       electionId: currentElection.value ? currentElection.value.id : '',
       type: f.type,
       ballotNumber: f.ballotNumber,
@@ -711,7 +716,7 @@ function saveCandidateForm() {
     triggerToast(res.message)
     showCandidateModal.value = false
   } else if (candidateModalMode.value === 'edit' && editingCandidateId.value) {
-    const res = updateCandidate(editingCandidateId.value, {
+    const res = await updateCandidate(editingCandidateId.value, {
       type: f.type,
       ballotNumber: f.ballotNumber,
       name: f.name.trim(),
@@ -737,8 +742,8 @@ function saveCandidateForm() {
         gpa: Number(f.viceGpa) || 3.5
       } : undefined,
       visi: f.visi.trim(),
-      misi: misi.length > 0 ? misi : undefined,
-      pillars: pillars.length > 0 ? pillars : undefined
+      misi,
+      pillars
     })
 
     if (!res.success) {
