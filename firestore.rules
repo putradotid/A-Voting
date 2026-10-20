@@ -1,0 +1,50 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =========================================================================
+    // HELPER FUNCTIONS
+    // =========================================================================
+
+    // Memastikan pengguna telah terautentikasi melalui Firebase Authentication
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Memastikan email pengguna termasuk dalam whitelist admin yang diizinkan
+    // PENTING: Ganti placeholder di bawah dengan email akun admin Firebase aktual Anda
+    function isAuthorizedAdmin() {
+      return isAuthenticated()
+        && request.auth.token.email != null
+        && request.auth.token.email in [
+          'admin@gmail.com'
+        ];
+    }
+
+    // =========================================================================
+    // COLLECTION RULES
+    // =========================================================================
+
+    // 1. Koleksi Master Profil Kandidat
+    // Akses dibatasi secara eksklusif hanya untuk admin terdaftar
+    match /master_candidates/{candidateId} {
+      allow read, write: if isAuthorizedAdmin();
+    }
+
+    // 2. Koleksi Partisipasi Kandidat dalam Agenda Pemilihan
+    // Akses dibatasi secara eksklusif hanya untuk admin terdaftar
+    match /candidate_participations/{participationId} {
+      allow read, write: if isAuthorizedAdmin();
+    }
+
+    // =========================================================================
+    // DEFAULT DENY RULE
+    // =========================================================================
+
+    // Menolak secara default seluruh operasi baca dan tulis untuk dokumen/koleksi lainnya
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
