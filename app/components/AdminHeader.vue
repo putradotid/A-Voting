@@ -1,18 +1,50 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 
-const { user, logout, loading } = useAdminAuth()
+const { user, logout, loading, waitUntilReady } = useAdminAuth()
+
+// State kesiapan client untuk sinkronisasi render SSR dan client hydration
+const isClientReady = ref(false)
+
+onMounted(async () => {
+  if (import.meta.client) {
+    try {
+      await waitUntilReady()
+    } catch (err) {
+      console.error('[AdminHeader] Kendala sinkronisasi sesi auth di client:', err)
+    } finally {
+      isClientReady.value = true
+    }
+  }
+})
 
 const handleLogout = async () => {
-  if (loading.value) return
+  if (isLogoutDisabled.value) return
   await logout()
   await navigateTo('/admin/login')
 }
 
-const displayEmail = computed(() => user.value?.email || 'admin@kampus.ac.id')
+// Pada render awal (SSR & hydration), tampilkan fallback konsisten 'Memuat...'
+// Setelah lifecycle client siap, tampilkan email admin sebenarnya dari Firebase Auth
+const displayEmail = computed(() => {
+  if (!isClientReady.value) {
+    return 'Memuat...'
+  }
+  return user.value?.email || 'admin@kampus.ac.id'
+})
+
 const displayInitials = computed(() => {
-  if (!user.value?.email) return 'AD'
+  if (!isClientReady.value || !user.value?.email) {
+    return 'AD'
+  }
   return user.value.email.slice(0, 2).toUpperCase()
+})
+
+const isLogoutDisabled = computed(() => {
+  if (!isClientReady.value) {
+    return true
+  }
+  return loading.value
 })
 </script>
 
@@ -143,7 +175,7 @@ const displayInitials = computed(() => {
           <button
             type="button"
             @click="handleLogout"
-            :disabled="loading"
+            :disabled="isLogoutDisabled"
             class="text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-2.5 py-1.5 rounded-lg transition disabled:opacity-50"
           >
             Logout

@@ -69,6 +69,12 @@ service cloud.firestore {
       allow read, write: if isAuthorizedAdmin();
     }
 
+    // 6. Koleksi Master Data Mahasiswa (Master Students)
+    // SANGAT RAHASIA: Memuat data pribadi mahasiswa (PII); akses dibatasi secara eksklusif hanya untuk admin terdaftar
+    match /master_students/{studentNim} {
+      allow read, write: if isAuthorizedAdmin();
+    }
+
     // =========================================================================
     // DEFAULT DENY RULE
     // =========================================================================
