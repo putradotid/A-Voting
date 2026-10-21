@@ -5,6 +5,7 @@ definePageMeta({
 })
 
 // ─── Composables & Types ─────────────────────────────────────────────
+import { onMounted } from 'vue'
 import type { Election, ElectionStatus } from '~/composables/useElections'
 import {
   useElections,
@@ -18,6 +19,10 @@ import {
 const {
   elections,
   activeElectionId,
+  electionsLoading,
+  electionsError,
+  fetchElections,
+  fetchActiveElection,
   getElectionById,
   getActiveElectionId,
   getActiveElection,
@@ -29,7 +34,12 @@ const {
   generateElectionId
 } = useElections()
 
-
+onMounted(async () => {
+  await Promise.all([
+    fetchElections(true),
+    fetchActiveElection()
+  ])
+})
 
 // ─── Toast System ────────────────────────────────────────────────────
 const toastMessage = ref('')
@@ -43,8 +53,8 @@ function triggerToast(msg: string) {
   }, 3500)
 }
 
-function handleSetActiveElection(id: string | null) {
-  const res = setActiveElection(id)
+async function handleSetActiveElection(id: string | null) {
+  const res = await setActiveElection(id)
   triggerToast(res.message)
 }
 
@@ -139,6 +149,7 @@ function formatDatetimeLocal(dateStr: string): string {
 
 // ─── Modal State: Add ───────────────────────────────────────────────
 const showAddModal = ref(false)
+const isSubmitting = ref(false)
 const addForm = ref({
   name: '',
   description: '',
@@ -149,6 +160,7 @@ const addForm = ref({
 const addErrors = ref<Record<string, string>>({})
 
 function openAddModal() {
+  if (isSubmitting.value) return
   addForm.value = { name: '', description: '', level: '', startDate: '', endDate: '' }
   addErrors.value = {}
   showAddModal.value = true
@@ -176,28 +188,37 @@ function validateAddForm(): boolean {
   return Object.keys(errors).length === 0
 }
 
-function submitAddForm() {
+async function submitAddForm() {
+  // Tolak pemanggilan ketika proses penyimpanan sedang berjalan
+  if (isSubmitting.value) return
   if (!validateAddForm()) return
 
+  isSubmitting.value = true
   const hasSchedule = addForm.value.startDate && addForm.value.endDate
-  const newEl = addElection({
-    name: addForm.value.name.trim(),
-    description: addForm.value.description.trim(),
-    level: addForm.value.level.trim(),
-    icon: 'ballot',
-    status: hasSchedule ? 'Terjadwal' : 'Draft',
-    startDate: addForm.value.startDate || '',
-    endDate: addForm.value.endDate || '',
-    candidates: 0,
-    candidateLabel: 'Calon',
-    dptTarget: 0,
-    dptVoted: 0,
-    turnout: 0,
-    info: hasSchedule ? '' : 'Persiapan awal, berkas belum dilengkapi'
-  })
+  try {
+    const newEl = await addElection({
+      name: addForm.value.name.trim(),
+      description: addForm.value.description.trim(),
+      level: addForm.value.level.trim(),
+      icon: 'ballot',
+      status: hasSchedule ? 'Terjadwal' : 'Draft',
+      startDate: addForm.value.startDate || '',
+      endDate: addForm.value.endDate || '',
+      candidates: 0,
+      candidateLabel: 'Calon',
+      dptTarget: 0,
+      dptVoted: 0,
+      turnout: 0,
+      info: hasSchedule ? '' : 'Persiapan awal, berkas belum dilengkapi'
+    })
 
-  triggerToast(`Pemilihan "${newEl.name}" berhasil dibuat.`)
-  showAddModal.value = false
+    triggerToast(`Pemilihan "${newEl.name}" berhasil dibuat.`)
+    showAddModal.value = false
+  } catch (err: any) {
+    triggerToast(`Gagal membuat pemilihan: ${err.message}`)
+  } finally {
+    isSubmitting.value = false
+  }
 }
 
 // ─── Modal State: Detail ────────────────────────────────────────────
@@ -266,10 +287,10 @@ function validateEditForm(): boolean {
   return Object.keys(errors).length === 0
 }
 
-function submitEditForm() {
+async function submitEditForm() {
   if (!validateEditForm()) return
 
-  const res = updateElection(editForm.value.id, {
+  const res = await updateElection(editForm.value.id, {
     name: editForm.value.name.trim(),
     description: editForm.value.description.trim(),
     level: editForm.value.level.trim(),
@@ -316,8 +337,8 @@ function confirmDeleteDraft(election: Election) {
   openConfirmDialog(
     'Hapus Draft Pemilihan',
     `Apakah Anda yakin ingin menghapus draft "${election.name}"? Tindakan ini tidak dapat dibatalkan.`,
-    () => {
-      const res = deleteElection(election.id)
+    async () => {
+      const res = await deleteElection(election.id)
       triggerToast(res.message)
     }
   )
@@ -472,9 +493,82 @@ function confirmDeleteDraft(election: Election) {
 
         <!-- Election Cards Collection -->
         <div class="space-y-4">
-          <!-- Empty State -->
+          <!-- Banner Error Saat Sudah Ada Data di Memori -->
           <div
-            v-if="filteredElections.length === 0"
+            v-if="electionsError && elections.length > 0"
+            class="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-center justify-between text-xs text-rose-800"
+          >
+            <div class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[18px] text-rose-600">warning</span>
+              <span>{{ electionsError }}</span>
+            </div>
+            <button
+              @click="fetchElections(true)"
+              class="font-semibold underline hover:text-rose-900 transition"
+            >
+              Muat Ulang
+            </button>
+          </div>
+
+          <!-- Loading Skeleton State (Inisial Fetch) -->
+          <div v-if="electionsLoading && elections.length === 0" class="space-y-4">
+            <div v-for="i in 3" :key="i" class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm animate-pulse flex flex-col gap-4">
+              <div class="flex items-start gap-4">
+                <div class="w-11 h-11 rounded-xl bg-slate-200 shrink-0"></div>
+                <div class="flex-1 space-y-2">
+                  <div class="h-4 bg-slate-200 rounded w-1/3"></div>
+                  <div class="h-3 bg-slate-100 rounded w-2/3"></div>
+                </div>
+              </div>
+              <div class="h-10 bg-slate-100 rounded-xl"></div>
+            </div>
+          </div>
+
+          <!-- Error State (Gagal Fetch dan Data Kosong) -->
+          <div
+            v-else-if="electionsError && elections.length === 0"
+            class="bg-rose-50/70 p-10 rounded-2xl border border-rose-200 text-center flex flex-col items-center justify-center"
+          >
+            <div class="w-14 h-14 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mb-3">
+              <span class="material-symbols-outlined text-[32px]">cloud_off</span>
+            </div>
+            <h3 class="text-sm font-bold text-rose-900 mb-1">Gagal Memuat Agenda Pemilihan</h3>
+            <p class="text-xs text-rose-700 max-w-md leading-relaxed mb-4">
+              {{ electionsError }}
+            </p>
+            <button
+              @click="fetchElections(true); fetchActiveElection(true)"
+              class="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-rose-600 rounded-xl hover:bg-rose-700 shadow-sm transition"
+            >
+              <span class="material-symbols-outlined text-[16px]">refresh</span>
+              Coba Lagi
+            </button>
+          </div>
+
+          <!-- Empty State (Koleksi Firestore Bersih / Kosong) -->
+          <div
+            v-else-if="elections.length === 0"
+            class="bg-white p-12 rounded-2xl border border-dashed border-slate-300 shadow-sm flex flex-col items-center justify-center text-center"
+          >
+            <div class="w-16 h-16 rounded-2xl bg-purple-50 text-[#582be8] flex items-center justify-center mb-4">
+              <span class="material-symbols-outlined text-[36px]">ballot</span>
+            </div>
+            <h3 class="text-base font-bold text-slate-800 mb-1">Belum Ada Agenda Pemilihan</h3>
+            <p class="text-xs text-slate-500 max-w-md leading-relaxed mb-5">
+              Koleksi pemilihan di Cloud Firestore masih kosong. Silakan buat agenda pemilihan perdana untuk memulai proses e-voting organisasi mahasiswa.
+            </p>
+            <button
+              @click="openAddModal"
+              class="inline-flex items-center gap-2 px-4 py-2.5 text-xs font-semibold text-white bg-[#582be8] hover:bg-[#471ec7] rounded-xl shadow-md shadow-purple-600/25 transition"
+            >
+              <span class="material-symbols-outlined text-[18px]">add_circle</span>
+              + Buat Pemilihan Perdana
+            </button>
+          </div>
+
+          <!-- Empty State (Hasil Filter / Pencarian Kosong) -->
+          <div
+            v-else-if="filteredElections.length === 0"
             class="bg-white p-12 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center"
           >
             <div class="w-16 h-16 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mb-4">
@@ -969,15 +1063,18 @@ function confirmDeleteDraft(election: Election) {
             <div class="sticky bottom-0 bg-white border-t border-slate-100 px-6 py-4 rounded-b-2xl flex items-center justify-end gap-3 z-10">
               <button
                 @click="showAddModal = false"
-                class="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition"
+                :disabled="isSubmitting"
+                class="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
               >
                 Batal
               </button>
               <button
                 @click="submitAddForm"
-                class="px-5 py-2 text-xs font-semibold text-white bg-[#582be8] hover:bg-[#471ec7] rounded-xl shadow-md shadow-purple-600/25 transition"
+                :disabled="isSubmitting"
+                class="inline-flex items-center gap-1.5 px-5 py-2 text-xs font-semibold text-white bg-[#582be8] hover:bg-[#471ec7] disabled:opacity-60 disabled:cursor-not-allowed rounded-xl shadow-md shadow-purple-600/25 transition"
               >
-                Simpan Pemilihan
+                <span v-if="isSubmitting" class="material-symbols-outlined text-[16px] animate-spin">progress_activity</span>
+                <span>{{ isSubmitting ? 'Menyimpan...' : 'Simpan Pemilihan' }}</span>
               </button>
             </div>
           </div>

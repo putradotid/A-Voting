@@ -12,13 +12,11 @@
         <!-- LOGO -->
         <div class="flex items-center gap-3">
 
-          <div
-            class="flex h-8 w-8 items-center justify-center rounded-lg bg-[#582be8]"
-          >
-            <span class="material-symbols-outlined text-[20px] text-white">
-              how_to_vote
-            </span>
-          </div>
+          <img
+            src="/A-voting%20logo.png"
+            alt="A-Vote Logo"
+            class="h-8 w-8 object-contain shrink-0"
+          />
 
           <span class="text-xl font-bold tracking-tight">
             A-Vote

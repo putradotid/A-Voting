@@ -10,6 +10,14 @@ export default defineNuxtConfig({
       tailwindcss(),
     ],
   },
+  app: {
+    head: {
+      title: 'A-Vote — Platform Pemilihan Digital Mahasiswa',
+      link: [
+        { rel: 'icon', type: 'image/png', href: '/A-voting%20logo.png' }
+      ]
+    }
+  },
   runtimeConfig: {
     public: {
       firebaseApiKey: process.env.NUXT_PUBLIC_FIREBASE_API_KEY || '',

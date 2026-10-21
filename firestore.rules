@@ -34,7 +34,38 @@ service cloud.firestore {
 
     // 2. Koleksi Partisipasi Kandidat dalam Agenda Pemilihan
     // Akses dibatasi secara eksklusif hanya untuk admin terdaftar
+    // Dokumen ini memuat perolehan suara (votesCount) dan status verifikasi internal KPU
     match /candidate_participations/{participationId} {
+      allow read, write: if isAuthorizedAdmin();
+    }
+
+    // 3. Koleksi Agenda Pemilihan (Elections)
+    // Tulis dibatasi eksklusif untuk admin terdaftar
+    // Dokumen Draft tidak dapat dibaca publik (hanya admin terdaftar)
+    // Dokumen non-Draft (Terjadwal, Berlangsung, Selesai) dapat dibaca publik
+    match /elections/{electionId} {
+      allow read: if isAuthorizedAdmin()
+        || (resource != null && resource.data.status in ['Terjadwal', 'Berlangsung', 'Selesai']);
+      allow write: if isAuthorizedAdmin();
+    }
+
+    // 4. Pengaturan Sistem Global (System Settings)
+    // 4a. Referensi Pemilihan Aktif (Eksplisit untuk Dokumen active_election)
+    // Publik hanya dapat membaca dokumen ini; tulis dibatasi eksklusif untuk admin terdaftar
+    match /system_settings/active_election {
+      allow read: if true;
+      allow write: if isAuthorizedAdmin();
+    }
+
+    // 4b. Dokumen Pengaturan Sistem Lainnya (e.g. system_metadata)
+    // Akses baca dan tulis dibatasi secara eksklusif hanya untuk admin terdaftar
+    match /system_settings/{settingId} {
+      allow read, write: if isAuthorizedAdmin();
+    }
+
+    // 5. Koleksi Data Pemilih Tetap (Election DPT)
+    // SANGAT RAHASIA: Akses baca dan tulis dibatasi secara eksklusif hanya untuk admin terdaftar
+    match /election_dpt/{dptId} {
       allow read, write: if isAuthorizedAdmin();
     }
 

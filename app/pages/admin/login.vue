@@ -279,6 +279,21 @@ const handleLogin = async () => {
           >
             <div class="max-w-md w-full mx-auto">
 
+              <!-- Brand Logo -->
+              <div class="flex items-center gap-3 mb-6">
+                <img
+                  src="/A-voting%20logo.png"
+                  alt="A-Vote Logo"
+                  class="w-10 h-10 object-contain shrink-0"
+                />
+                <div class="flex items-center gap-2">
+                  <span class="text-xl font-bold tracking-tight text-[#582be8]">A-Vote</span>
+                  <span class="text-[10px] px-2 py-0.5 rounded-md font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+                    Admin Panel
+                  </span>
+                </div>
+              </div>
+
               <!-- Heading -->
               <div class="mb-8">
                 <span

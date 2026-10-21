@@ -10,12 +10,11 @@
         <div class="flex items-center gap-6">
 
           <a href="/voter/booth" class="group flex items-center gap-2">
-            <div
-              class="flex h-10 w-10 items-center justify-center rounded-xl bg-[#582be8] text-white shadow-[0_2px_8px_-2px_rgba(88,43,232,0.3)]">
-              <span class="material-symbols-outlined">
-                how_to_vote
-              </span>
-            </div>
+            <img
+              src="/A-voting%20logo.png"
+              alt="A-Vote Logo"
+              class="h-10 w-10 object-contain shrink-0"
+            />
 
             <div class="flex flex-col">
               <span class="text-xl font-bold leading-none tracking-tight text-[#4000c6]">

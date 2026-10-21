@@ -27,14 +27,25 @@ import {
 
 const {
   getElectionById,
+  fetchElectionById,
+  fetchActiveElection,
+  electionsLoading,
+  electionsError,
   updateElection,
   deleteElection,
   isActiveElection,
   setActiveElection
 } = useElections()
 
-function handleSetActiveElection(id: string | null) {
-  const res = setActiveElection(id)
+onMounted(async () => {
+  await Promise.all([
+    fetchElectionById(rawId.value),
+    fetchActiveElection()
+  ])
+})
+
+async function handleSetActiveElection(id: string | null) {
+  const res = await setActiveElection(id)
   triggerToast(res.message)
 }
 
@@ -75,7 +86,7 @@ function switchTab(key: TabKey) {
 const tabs = computed<{ key: TabKey; label: string; icon: string; count?: string | number }[]>(() => [
   { key: 'ringkasan', label: 'Ringkasan', icon: 'dashboard' },
   { key: 'kandidat', label: 'Kandidat', icon: 'groups', count: currentElectionCandidates.value.length },
-  { key: 'pemilih', label: 'Pemilih (DPT)', icon: 'how_to_reg', count: currentElection.value?.dptTarget ? currentElection.value.dptTarget.toLocaleString() : undefined },
+  { key: 'pemilih', label: 'Pemilih (DPT)', icon: 'how_to_reg', count: currentElection.value?.dptCount !== undefined && currentElection.value.dptCount > 0 ? currentElection.value.dptCount.toLocaleString() : (currentElection.value?.dptTarget ? currentElection.value.dptTarget.toLocaleString() : undefined) },
   { key: 'monitoring', label: 'Monitoring Suara', icon: 'monitoring' },
   { key: 'pengaturan', label: 'Pengaturan & Aturan', icon: 'settings' }
 ])
@@ -224,11 +235,11 @@ function validateEditForm(): boolean {
   return Object.keys(errors).length === 0
 }
 
-function saveEditForm() {
+async function saveEditForm() {
   if (!currentElection.value) return
   if (!validateEditForm()) return
 
-  const res = updateElection(currentElection.value.id, {
+  const res = await updateElection(currentElection.value.id, {
     name: editForm.value.name.trim() || currentElection.value.name,
     description: editForm.value.description.trim(),
     organization: editForm.value.organization.trim() || currentElection.value.organization,
@@ -505,13 +516,13 @@ const candidateStats = computed(() => currentElection.value ? getCandidateStats(
 // Sync election stats with DPT database and Candidates database (only update if values actually changed)
 watch(
   [dptStats, candidateStats],
-  ([newDpt, newCand]) => {
+  async ([newDpt, newCand]) => {
     const c = currentElection.value
     if (!c) return
 
     const hasCandidateChange = (c.candidates !== newCand.total) || (c.candidatesCount !== newCand.total)
     const hasDptChange = newDpt.total > 0 && (
-      c.dptTarget !== newDpt.total ||
+      c.dptCount !== newDpt.total ||
       c.dptVoted !== newDpt.voted ||
       c.turnout !== newDpt.turnout
     )
@@ -525,11 +536,11 @@ watch(
       candidates: newCand.total
     }
     if (newDpt.total > 0) {
-      updates.dptTarget = newDpt.total
+      updates.dptCount = newDpt.total // PERBAIKAN: Gunakan dptCount untuk jumlah aktual, jangan menimpa dptTarget administratif
       updates.dptVoted = newDpt.voted
       updates.turnout = newDpt.turnout
     }
-    updateElection(c.id, updates)
+    await updateElection(c.id, updates)
   },
   { immediate: true }
 )
@@ -832,9 +843,9 @@ function promptCloseElection() {
   showCloseElectionModal.value = true
 }
 
-function confirmCloseElection() {
+async function confirmCloseElection() {
   if (!currentElection.value) return
-  const res = updateElection(currentElection.value.id, {
+  const res = await updateElection(currentElection.value.id, {
     status: 'Selesai'
   })
   if (!res.success) {
@@ -850,9 +861,24 @@ function confirmCloseElection() {
 <template>
   <div class="w-full flex flex-col gap-6 antialiased">
     <!-- ══════════════════════════════════════════════════════════════════
+         STATE: MEMUAT DATA (LOADING)
+    ═══════════════════════════════════════════════════════════════════ -->
+    <div v-if="electionsLoading && !currentElection" class="bg-white p-12 rounded-2xl border border-slate-200 text-center space-y-4 max-w-lg mx-auto my-12 shadow-sm animate-pulse">
+      <div class="w-16 h-16 rounded-2xl bg-purple-50 text-[#582be8] flex items-center justify-center mx-auto">
+        <span class="material-symbols-outlined text-[36px] animate-spin">progress_activity</span>
+      </div>
+      <div>
+        <h3 class="text-lg font-bold text-slate-900">Memuat Data Pemilihan...</h3>
+        <p class="text-xs text-slate-500 mt-1">
+          Mengambil data agenda pemilihan dari Cloud Firestore.
+        </p>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════
          STATE: TIDAK DITEMUKAN (NOT FOUND)
     ═══════════════════════════════════════════════════════════════════ -->
-    <div v-if="!currentElection" class="bg-white p-12 rounded-2xl border border-slate-200 text-center space-y-4 max-w-lg mx-auto my-12 shadow-sm">
+    <div v-else-if="!currentElection" class="bg-white p-12 rounded-2xl border border-slate-200 text-center space-y-4 max-w-lg mx-auto my-12 shadow-sm">
       <div class="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
         <span class="material-symbols-outlined text-[36px]">event_busy</span>
       </div>
@@ -1076,11 +1102,14 @@ function confirmCloseElection() {
         </div>
         <div class="mt-3">
           <p class="text-2xl sm:text-3xl font-extrabold text-slate-900">
-            {{ currentElection.dptTarget > 0 ? currentElection.dptTarget.toLocaleString() : 'Belum ditentukan' }}
+            {{ (currentElection.dptCount !== undefined && currentElection.dptCount > 0) ? currentElection.dptCount.toLocaleString() : (currentElection.dptTarget > 0 ? currentElection.dptTarget.toLocaleString() : 'Belum ditentukan') }}
           </p>
           <p class="text-xs text-slate-400 mt-1 flex items-center gap-1">
             <span class="material-symbols-outlined text-[15px] text-emerald-600">check_circle</span>
             Basis data mahasiswa aktif terverifikasi
+            <span v-if="currentElection.dptTarget > 0 && currentElection.dptCount !== undefined" class="text-slate-500 font-mono text-[11px] block mt-0.5">
+              (Target SK: {{ currentElection.dptTarget.toLocaleString() }})
+            </span>
           </p>
         </div>
       </div>

@@ -10,7 +10,11 @@ definePageMeta({
     
     <section class="pt-16 pb-6 px-4 sm:px-6 text-center max-w-5xl mx-auto">
       <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#f4f0ff] border border-purple-200/80 text-[#582be8] text-xs font-semibold tracking-wide mb-6 shadow-sm">
-        <span class="text-sm">✦</span>
+        <img
+          src="/A-voting%20logo.png"
+          alt="A-Vote Logo"
+          class="w-4 h-4 object-contain shrink-0"
+        />
         <span>A-Voting System</span>
         <span class="w-1.5 h-1.5 rounded-full bg-[#582be8] animate-pulse"></span>
       </div>

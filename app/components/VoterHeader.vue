@@ -14,11 +14,11 @@
           to="/voter"
           class="flex items-center gap-2"
         >
-          <div
-            class="w-10 h-10 rounded-xl bg-[#582be8] flex items-center justify-center text-white shadow-md shadow-purple-600/20"
-          >
-            <span class="text-xl">🗳️</span>
-          </div>
+          <img
+            src="/A-voting%20logo.png"
+            alt="A-Vote Logo"
+            class="w-10 h-10 object-contain shrink-0"
+          />
 
           <div class="flex flex-col">
             <span
