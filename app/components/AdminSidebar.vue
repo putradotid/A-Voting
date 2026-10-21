@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import { useRoute } from 'vue-router'
+import { onMounted } from 'vue'
+import { useElections } from '~/composables/useElections'
 
 const route = useRoute()
+const { activeElectionId, fetchActiveElection } = useElections()
+
+onMounted(() => {
+  fetchActiveElection()
+})
 
 const isRouteActive = (path: string) => {
   if (path === '/admin/dashboard') {
@@ -87,9 +94,18 @@ const isRouteActive = (path: string) => {
         </div>
 
         <span
-          class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800"
+          v-if="activeElectionId"
+          class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-[#582be8] border border-purple-200"
+          title="Terdapat agenda pemilihan aktif di portal pemilih"
         >
-          3 Aktif
+          1 Aktif
+        </span>
+        <span
+          v-else
+          class="text-[11px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-500"
+          title="Belum ada pemilihan aktif"
+        >
+          0 Aktif
         </span>
       </NuxtLink>
 

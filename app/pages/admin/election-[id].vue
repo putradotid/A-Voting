@@ -37,7 +37,23 @@ const {
   setActiveElection
 } = useElections()
 
+// ─── Current Election State ──────────────────────────────────────────
+const rawId = computed(() => String(route.params.id || ''))
+const isActiveRoute = computed(() => rawId.value === 'active')
+const isActiveElectionNotFound = ref(false)
+const currentElection = computed(() => getElectionById(rawId.value))
+
 onMounted(async () => {
+  if (isActiveRoute.value) {
+    const activeId = await fetchActiveElection(true)
+    if (activeId) {
+      await router.replace(`/admin/elections/${activeId}`)
+    } else {
+      isActiveElectionNotFound.value = true
+    }
+    return
+  }
+
   await Promise.all([
     fetchElectionById(rawId.value),
     fetchActiveElection()
@@ -48,10 +64,6 @@ async function handleSetActiveElection(id: string | null) {
   const res = await setActiveElection(id)
   triggerToast(res.message)
 }
-
-// ─── Current Election State ──────────────────────────────────────────
-const rawId = computed(() => String(route.params.id || ''))
-const currentElection = computed(() => getElectionById(rawId.value))
 
 // ─── Navigation Tabs ─────────────────────────────────────────────────
 type TabKey = 'ringkasan' | 'kandidat' | 'pemilih' | 'monitoring' | 'pengaturan'
@@ -879,13 +891,20 @@ async function confirmCloseElection() {
          STATE: TIDAK DITEMUKAN (NOT FOUND)
     ═══════════════════════════════════════════════════════════════════ -->
     <div v-else-if="!currentElection" class="bg-white p-12 rounded-2xl border border-slate-200 text-center space-y-4 max-w-lg mx-auto my-12 shadow-sm">
-      <div class="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
-        <span class="material-symbols-outlined text-[36px]">event_busy</span>
+      <div :class="['w-16 h-16 rounded-2xl flex items-center justify-center mx-auto', isActiveRoute ? 'bg-purple-50 text-[#582be8]' : 'bg-amber-50 text-amber-600']">
+        <span class="material-symbols-outlined text-[36px]">{{ isActiveRoute ? 'how_to_vote' : 'event_busy' }}</span>
       </div>
       <div>
-        <h3 class="text-lg font-bold text-slate-900">Pemilihan Tidak Ditemukan</h3>
+        <h3 class="text-lg font-bold text-slate-900">
+          {{ isActiveRoute ? 'Belum Ada Pemilihan Aktif' : 'Pemilihan Tidak Ditemukan' }}
+        </h3>
         <p class="text-xs text-slate-500 mt-1 leading-relaxed">
-          Agenda pemilihan dengan ID <strong class="font-mono text-slate-700">#{{ rawId }}</strong> tidak ditemukan dalam sistem atau telah dihapus.
+          <template v-if="isActiveRoute">
+            Saat ini belum ada agenda pemilihan yang berstatus <strong class="text-emerald-700">Berlangsung</strong> dan ditetapkan sebagai pemilihan aktif di portal pemilih.
+          </template>
+          <template v-else>
+            Agenda pemilihan dengan ID <strong class="font-mono text-slate-700">#{{ rawId }}</strong> tidak ditemukan dalam sistem atau telah dihapus.
+          </template>
         </p>
       </div>
       <div class="pt-2">

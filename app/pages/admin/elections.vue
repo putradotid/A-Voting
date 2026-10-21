@@ -58,6 +58,16 @@ async function handleSetActiveElection(id: string | null) {
   triggerToast(res.message)
 }
 
+const activeElection = computed(() => getActiveElection())
+
+function goToActiveElection() {
+  if (activeElectionId.value) {
+    navigateTo(`/admin/elections/${activeElectionId.value}`)
+  } else {
+    triggerToast('Belum ada agenda pemilihan yang berstatus aktif saat ini.')
+  }
+}
+
 // ─── Status Helpers ─────────────────────────────────────────────────
 const statusConfig: Record<string, { bg: string; text: string; dot: string; borderHover: string; iconBg: string; iconText: string; ping?: boolean }> = {
   Berlangsung: { bg: 'bg-emerald-100', text: 'text-emerald-800', dot: 'bg-emerald-500', borderHover: 'hover:border-emerald-200', iconBg: 'bg-purple-50', iconText: 'text-[#582be8]', ping: true },
@@ -397,19 +407,31 @@ function confirmDeleteDraft(election: Election) {
       </div>
 
       <!-- Stat 2: Berlangsung -->
-      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-emerald-200 hover:shadow transition flex items-center gap-4">
-        <div class="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-          <span class="material-symbols-outlined text-[24px]" style="font-variation-settings: 'FILL' 1;">how_to_vote</span>
-        </div>
-        <div class="min-w-0">
-          <div class="flex items-center gap-1.5">
-            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <p class="font-mono text-[10px] text-emerald-700 uppercase tracking-wider font-semibold">Berlangsung</p>
+      <div
+        @click="goToActiveElection"
+        :class="[
+          'bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-emerald-200 hover:shadow transition flex items-center justify-between gap-4 cursor-pointer group',
+          activeElection ? 'hover:bg-emerald-50/20' : ''
+        ]"
+        :title="activeElection ? `Klik untuk membuka ${activeElection.name}` : 'Belum ada pemilihan aktif'"
+      >
+        <div class="flex items-center gap-4 min-w-0">
+          <div class="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+            <span class="material-symbols-outlined text-[24px]" style="font-variation-settings: 'FILL' 1;">how_to_vote</span>
           </div>
-          <p class="text-xl text-slate-900 font-extrabold">
-            {{ stats.berlangsung }} <span class="text-xs font-normal text-slate-500">Bilik Aktif</span>
-          </p>
+          <div class="min-w-0">
+            <div class="flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <p class="font-mono text-[10px] text-emerald-700 uppercase tracking-wider font-semibold">Berlangsung</p>
+            </div>
+            <p class="text-xl text-slate-900 font-extrabold">
+              {{ stats.berlangsung }} <span class="text-xs font-normal text-slate-500">Bilik Aktif</span>
+            </p>
+          </div>
         </div>
+        <span class="material-symbols-outlined text-[18px] text-slate-300 group-hover:text-emerald-600 transition">
+          arrow_forward
+        </span>
       </div>
 
       <!-- Stat 3: Terjadwal -->
@@ -456,6 +478,56 @@ function confirmDeleteDraft(election: Election) {
     <div class="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
       <!-- Left Column: Election Management Table & Filters (9 Cols) -->
       <div class="xl:col-span-9 flex flex-col space-y-6">
+        <!-- Active Election Status Banner & Quick Navigation -->
+        <div
+          v-if="activeElection"
+          class="bg-gradient-to-r from-purple-50 via-indigo-50/40 to-white p-5 rounded-2xl border border-purple-200/80 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4"
+        >
+          <div class="flex items-start sm:items-center gap-3.5">
+            <div class="w-10 h-10 rounded-xl bg-[#582be8] text-white flex items-center justify-center shrink-0 shadow-sm shadow-purple-600/30">
+              <span class="material-symbols-outlined text-[22px]">how_to_vote</span>
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#582be8] text-white">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  Pemilihan Aktif di Portal
+                </span>
+                <span class="font-mono text-[11px] font-semibold text-slate-500">#{{ activeElection.id }}</span>
+              </div>
+              <h3 class="text-sm sm:text-base font-bold text-slate-900 mt-0.5">
+                {{ activeElection.name }}
+              </h3>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            <NuxtLink
+              :to="`/admin/elections/${activeElection.id}`"
+              class="inline-flex items-center gap-1.5 px-4 py-2 bg-[#582be8] text-white text-xs font-semibold rounded-xl hover:bg-[#471ec7] shadow-sm shadow-purple-600/20 transition cursor-pointer"
+            >
+              <span class="material-symbols-outlined text-[16px]">query_stats</span>
+              Buka Pemilihan Aktif
+            </NuxtLink>
+            <button
+              @click="handleSetActiveElection(null)"
+              class="px-3 py-2 text-xs font-semibold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 hover:text-red-600 shadow-sm transition cursor-pointer"
+              title="Lepas penetapan pemilihan aktif"
+            >
+              Lepas Aktif
+            </button>
+          </div>
+        </div>
+
+        <div
+          v-else
+          class="bg-slate-50/80 p-4 rounded-2xl border border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+        >
+          <div class="flex items-center gap-2.5 text-slate-600">
+            <span class="material-symbols-outlined text-[20px] text-slate-400">info</span>
+            <span>Belum ada agenda pemilihan yang ditetapkan aktif di portal pemilih. Tetapkan salah satu agenda berstatus <strong>Berlangsung</strong> sebagai pemilihan aktif.</span>
+          </div>
+        </div>
+
         <!-- Filter & Search Panel -->
         <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-4">
           <!-- Search bar + Dropdowns -->

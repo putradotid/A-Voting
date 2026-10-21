@@ -348,21 +348,58 @@ export const useElections = () => {
 
       const data = docSnap.data()
       const targetId = data?.activeElectionId as string | null | undefined
-      if (!targetId) {
+      if (!targetId || typeof targetId !== 'string' || !targetId.trim()) {
         activeElectionId.value = null
         return null
       }
 
-      // Validasi konsistensi status pemilihan: jika berstatus Selesai, batalkan aktif
-      const election = elections.value.find(e => e.id === targetId)
-      if (election && election.status === 'Selesai') {
+      // Verifikasi keberadaan dan keabsahan dokumen target di koleksi elections
+      let targetElection: Election | null = null
+
+      // 1. Cek di memori jika sudah dimuat
+      const existing = elections.value.find(e => e.id === targetId)
+      if (existing) {
+        targetElection = existing
+      } else {
+        // 2. Jika belum ada di memori, ambil langsung dari Firestore
+        const electionDocRef = doc(db, 'elections', targetId)
+        const electionDocSnap = await getDoc(electionDocRef)
+        if (electionDocSnap.exists()) {
+          targetElection = normalizeFirestoreElection(electionDocSnap.id, electionDocSnap.data())
+          // Sinkronkan ke memori agar getActiveElection dapat mengaksesnya segera
+          const idx = elections.value.findIndex(e => e.id === targetId)
+          if (idx !== -1) {
+            elections.value[idx] = targetElection
+          } else {
+            elections.value.push(targetElection)
+          }
+        }
+      }
+
+      // Jika dokumen pemilihan target tidak ditemukan di Firestore, referensi tidak valid
+      if (!targetElection) {
+        console.warn(`[useElections] Dokumen pemilihan aktif #${targetId} tidak ditemukan di Firestore.`)
         activeElectionId.value = null
-        // Perbarui Firestore secara konsisten
-        await setDoc(docRef, {
-          activeElectionId: null,
-          updatedAt: new Date().toISOString()
-        }, { merge: true })
         return null
+      }
+
+      // Validasi aturan: hanya pemilihan berstatus 'Berlangsung' yang sah menjadi pemilihan aktif
+      if (targetElection.status !== 'Berlangsung') {
+        console.warn(`[useElections] Pemilihan #${targetId} berstatus "${targetElection.status}" (bukan Berlangsung). Membatalkan status aktif.`)
+        activeElectionId.value = null
+        return null
+      }
+
+      // Validasi jadwal pemilihan aktif jika ada rentang waktu
+      if (targetElection.startDate && targetElection.endDate) {
+        const now = Date.now()
+        const start = new Date(targetElection.startDate).getTime()
+        const end = new Date(targetElection.endDate).getTime()
+        if ((!isNaN(start) && now < start) || (!isNaN(end) && now > end)) {
+          console.warn(`[useElections] Pemilihan #${targetId} berada di luar rentang jadwal aktif.`)
+          activeElectionId.value = null
+          return null
+        }
       }
 
       activeElectionId.value = targetId
@@ -384,7 +421,7 @@ export const useElections = () => {
     if (!found) {
       return null
     }
-    if (found.status === 'Selesai') {
+    if (found.status !== 'Berlangsung') {
       return null
     }
     return found
@@ -393,6 +430,22 @@ export const useElections = () => {
   function isActiveElection(id: string): boolean {
     if (!activeElectionId.value || !id) return false
     return activeElectionId.value === id
+  }
+
+  async function navigateToActiveElection(): Promise<{ success: boolean; message: string; electionId?: string }> {
+    const activeId = await fetchActiveElection(true)
+    if (!activeId) {
+      return {
+        success: false,
+        message: 'Belum ada agenda pemilihan yang berstatus aktif saat ini.'
+      }
+    }
+    await navigateTo(`/admin/elections/${activeId}`)
+    return {
+      success: true,
+      message: 'Berhasil mengarahkan ke pemilihan aktif.',
+      electionId: activeId
+    }
   }
 
   async function setActiveElection(id: string | null): Promise<{ success: boolean; message: string }> {
@@ -415,7 +468,11 @@ export const useElections = () => {
       return { success: true, message: 'Penetapan pemilihan aktif berhasil dinonaktifkan.' }
     }
 
-    const target = getElectionById(id)
+    let target = getElectionById(id)
+    if (!target) {
+      target = (await fetchElectionById(id)) || undefined
+    }
+
     if (!target) {
       return { success: false, message: 'Pemilihan tidak ditemukan.' }
     }
@@ -687,6 +744,7 @@ export const useElections = () => {
     getActiveElection,
     isActiveElection,
     setActiveElection,
+    navigateToActiveElection,
     generateElectionId,
     addElection,
     updateElection,
