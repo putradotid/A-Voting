@@ -9,7 +9,7 @@ definePageMeta({
 const route = useRoute()
 const router = useRouter()
 
-import { onMounted } from 'vue'
+import { onMounted, onUnmounted } from 'vue'
 import type {
   ElectionCandidate,
   CandidateType,
@@ -56,9 +56,23 @@ onMounted(async () => {
 
   await Promise.all([
     fetchElectionById(rawId.value),
-    fetchActiveElection()
+    fetchActiveElection(),
+    loadElectionDptData(rawId.value)
   ])
 })
+
+// Pantau perubahan ID pemilihan dari parameter rute URL
+watch(
+  () => rawId.value,
+  async (newId) => {
+    if (newId && newId !== 'active') {
+      await Promise.all([
+        fetchElectionById(newId),
+        loadElectionDptData(newId)
+      ])
+    }
+  }
+)
 
 async function handleSetActiveElection(id: string | null) {
   const res = await setActiveElection(id)
@@ -83,6 +97,18 @@ watch(
     if (newTab && ['ringkasan', 'kandidat', 'pemilih', 'monitoring', 'pengaturan'].includes(newTab as string)) {
       if (activeTab.value !== newTab) {
         activeTab.value = newTab as TabKey
+      }
+    }
+  }
+)
+
+// Muat DPT secara on-demand saat tab pemilih dibuka jika belum dimuat
+watch(
+  () => activeTab.value,
+  async (newTab) => {
+    if (newTab === 'pemilih' && currentElection.value?.id) {
+      if (!isElectionDptLoaded(currentElection.value.id) || masterStudents.value.length === 0) {
+        await loadElectionDptData(currentElection.value.id)
       }
     }
   }
@@ -278,8 +304,79 @@ const {
   getVotersByElection,
   isStudentInElectionDpt,
   assignStudentsToElection,
-  removeStudentFromElection
+  removeStudentFromElection,
+  fetchDptByElection,
+  dptLoading,
+  dptError,
+  isElectionDptLoaded,
+  checkStudentDptEligibility,
+  migrateDummyDptToElection
 } = useElectionDpt()
+
+// Helper terpusat untuk memuat data DPT & Master Students dari Firestore
+async function loadElectionDptData(electionId: string, force = false) {
+  const cleanId = String(electionId || '').trim()
+  if (!cleanId || cleanId === 'active') return
+
+  try {
+    await Promise.all([
+      fetchDptByElection(cleanId, force),
+      masterStudents.fetchMasterStudents(force)
+    ])
+  } catch (err) {
+    console.error(`[election-[id]] Gagal memuat data DPT untuk #${cleanId}:`, err)
+  }
+}
+
+// ─── Development-Only Runner: Eksekusi Migrasi DPT Terkontrol ────────
+// PENTING: Helper ini TIDAK memanggil migrasi secara otomatis.
+// Helper ini hanya dieksekusi ketika developer mengetik perintah secara manual di DevTools Console.
+if (import.meta.dev && import.meta.client) {
+  const dptMigrationRunner = async (targetElectionId: string = 'PEM-2026-01') => {
+    console.log(`[DPT Migration] Memulai eksekusi migrasi DPT terkontrol ke agenda "${targetElectionId}"...`)
+    try {
+      const result = await migrateDummyDptToElection(targetElectionId, {
+        resetVotingStatus: true
+      })
+
+      console.log(
+        `%c[DPT Migration] Eksekusi migrasi selesai! Status: ${result.success ? 'BERHASIL' : 'SEBAGIAN / GAGAL'}`,
+        `color: ${result.success ? '#10b981' : '#f59e0b'}; font-weight: bold; font-size: 13px;`
+      )
+
+      console.table({
+        success: result.success,
+        targetElectionId: result.targetElectionId,
+        totalCandidates: result.totalCandidates,
+        added: result.added,
+        skipped: result.skipped,
+        failed: result.failed,
+        invalidRelations: result.invalidRelations,
+        errors: result.errors.length
+      })
+
+      if (result.errors && result.errors.length > 0) {
+        console.warn('[DPT Migration] Detail item bermasalah/dilewati:')
+        console.table(result.errors)
+      }
+
+      return result
+    } catch (err: any) {
+      console.error('[DPT Migration] Eksekusi migrasi gagal atau ditolak:', err.message || err)
+      throw err
+    }
+  }
+
+  // Daftarkan ke window
+  ;(window as any).__executeDptMigration = dptMigrationRunner
+
+  // Cleanup helper saat halaman dilepas (unmounted) dengan verifikasi identitas fungsi
+  onUnmounted(() => {
+    if ((window as any).__executeDptMigration === dptMigrationRunner) {
+      delete (window as any).__executeDptMigration
+    }
+  })
+}
 
 // Dynamic Voters in this Election (Derived from Election DPT Database)
 const currentElectionVoters = computed(() => currentElection.value ? getVotersByElection(currentElection.value.id) : [])
@@ -344,14 +441,21 @@ const availableMasterStudents = computed(() => {
       s.faculty === addVoterFaculty.value ||
       s.facultyCode === addVoterFaculty.value
     return matchSearch && matchFaculty
-  }).map(s => ({
-    ...s,
-    isRegistered: currentElection.value ? isStudentInElectionDpt(currentElection.value.id, s.id) : false
-  }))
+  }).map(s => {
+    const isRegistered = currentElection.value ? isStudentInElectionDpt(currentElection.value.id, s.id) : false
+    const eligibility = checkStudentDptEligibility(s)
+    return {
+      ...s,
+      isRegistered,
+      isEligible: eligibility.isEligible,
+      eligibilityCode: eligibility.code,
+      eligibilityReason: eligibility.reason
+    }
+  })
 })
 
 const unassignedMasterStudents = computed(() => {
-  return availableMasterStudents.value.filter(s => !s.isRegistered)
+  return availableMasterStudents.value.filter(s => !s.isRegistered && s.isEligible)
 })
 
 const isAllUnassignedSelected = computed(() => {
@@ -369,23 +473,48 @@ function toggleSelectAllUnassigned() {
   }
 }
 
-function openAddVotersModal() {
+const isAssigningDpt = ref(false)
+const isRemovingDpt = ref(false)
+
+async function openAddVotersModal() {
   addVoterSearch.value = ''
   addVoterFaculty.value = 'Semua'
   selectedStudentIdsToAdd.value = []
+  if (masterStudents.value.length === 0) {
+    await masterStudents.fetchMasterStudents()
+  }
   showAddVotersModal.value = true
 }
 
-function submitAssignVoters() {
-  if (!currentElection.value || selectedStudentIdsToAdd.value.length === 0) return
-  const result = assignStudentsToElection(currentElection.value.id, selectedStudentIdsToAdd.value)
-  if (result.added > 0) {
-    triggerToast(`Berhasil menetapkan ${result.added} mahasiswa ke DPT pemilihan ${currentElection.value.id}.`)
-  } else {
-    triggerToast('Tidak ada mahasiswa baru yang ditambahkan (seluruh mahasiswa terpilih sudah terdaftar).')
+async function submitAssignVoters() {
+  if (!currentElection.value || selectedStudentIdsToAdd.value.length === 0 || isAssigningDpt.value) return
+
+  // Saring hanya mahasiswa yang memenuhi syarat kelayakan DPT (Aktif & Terverifikasi)
+  const eligibleSelectedIds = selectedStudentIdsToAdd.value.filter(id => {
+    const s = masterStudents.value.find(m => m.id === id || m.nim === id)
+    return s ? checkStudentDptEligibility(s).isEligible : false
+  })
+
+  if (eligibleSelectedIds.length === 0) {
+    triggerToast('Peringatan: Tidak ada mahasiswa terpilih yang memenuhi syarat kelayakan DPT (Aktif & Terverifikasi).')
+    return
   }
-  selectedStudentIdsToAdd.value = []
-  showAddVotersModal.value = false
+
+  isAssigningDpt.value = true
+  try {
+    const result = await assignStudentsToElection(currentElection.value.id, eligibleSelectedIds)
+    if (result.added > 0) {
+      triggerToast(`Berhasil menetapkan ${result.added} mahasiswa ke DPT pemilihan ${currentElection.value.id}.`)
+    } else {
+      triggerToast('Tidak ada mahasiswa baru yang ditambahkan (seluruh mahasiswa terpilih sudah terdaftar).')
+    }
+    selectedStudentIdsToAdd.value = []
+    showAddVotersModal.value = false
+  } catch (err: any) {
+    triggerToast(err.message || 'Gagal menyimpan penetapan DPT ke Cloud Firestore.')
+  } finally {
+    isAssigningDpt.value = false
+  }
 }
 
 // ─── Modal State: Konfirmasi Cabut Hak Suara ───────────────────────────
@@ -401,16 +530,32 @@ function promptRemoveVoter(voter: ElectionVoterDetail) {
   showRemoveVoterModal.value = true
 }
 
-function confirmRemoveVoter() {
-  if (!currentElection.value || !voterToRemove.value) return
-  const result = removeStudentFromElection(currentElection.value.id, voterToRemove.value.studentId)
-  if (result.success) {
-    triggerToast(`Hak suara mahasiswa ${voterToRemove.value.name} (NIM: ${voterToRemove.value.nim}) berhasil dicabut dari DPT.`)
-  } else {
-    triggerToast(result.message)
+async function confirmRemoveVoter() {
+  if (!currentElection.value || !voterToRemove.value || isRemovingDpt.value) return
+  if (voterToRemove.value.hasVoted) {
+    triggerToast('Peringatan: Mahasiswa ini telah menggunakan hak suaranya di bilik suara. Data tidak dapat dicabut.')
+    showRemoveVoterModal.value = false
+    voterToRemove.value = null
+    return
   }
-  showRemoveVoterModal.value = false
-  voterToRemove.value = null
+  isRemovingDpt.value = true
+  try {
+    const result = await removeStudentFromElection(
+      currentElection.value.id,
+      voterToRemove.value.nim || voterToRemove.value.studentId
+    )
+    if (result.success) {
+      triggerToast(`Hak suara mahasiswa ${voterToRemove.value.name} (NIM: ${voterToRemove.value.nim}) berhasil dicabut dari DPT.`)
+    } else {
+      triggerToast(result.message)
+    }
+    showRemoveVoterModal.value = false
+    voterToRemove.value = null
+  } catch (err: any) {
+    triggerToast(err.message || 'Gagal mencabut hak suara dari Cloud Firestore.')
+  } finally {
+    isRemovingDpt.value = false
+  }
 }
 
 // ─── Toast System ────────────────────────────────────────────────────
@@ -1772,6 +1917,19 @@ async function confirmCloseElection() {
         </div>
 
         <div class="flex flex-wrap items-center gap-2.5 shrink-0">
+          <button
+            type="button"
+            @click="loadElectionDptData(currentElection.id, true)"
+            :disabled="dptLoading"
+            title="Muat ulang data DPT dari Cloud Firestore"
+            class="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 shadow-sm transition disabled:opacity-50 cursor-pointer"
+          >
+            <span :class="['material-symbols-outlined text-[16px] text-slate-500', { 'animate-spin': dptLoading }]">
+              refresh
+            </span>
+            Segarkan Data
+          </button>
+
           <NuxtLink
             to="/admin/voter-list"
             class="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 shadow-sm transition"
@@ -1789,6 +1947,22 @@ async function confirmCloseElection() {
             + Tambah Pemilih ke DPT
           </button>
         </div>
+      </div>
+
+      <!-- DPT Error Alert -->
+      <div v-if="dptError" class="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-3">
+        <span class="material-symbols-outlined text-rose-600 text-[20px] shrink-0 mt-0.5">error</span>
+        <div class="flex-1">
+          <p class="text-xs font-bold text-rose-800">Gagal Memuat DPT dari Cloud Firestore</p>
+          <p class="text-[11px] text-rose-600 mt-0.5">{{ dptError }}</p>
+        </div>
+        <button
+          type="button"
+          @click="loadElectionDptData(currentElection.id, true)"
+          class="px-3 py-1.5 bg-white border border-rose-200 text-rose-700 hover:bg-rose-100 rounded-xl text-xs font-semibold shrink-0 cursor-pointer transition shadow-sm"
+        >
+          Coba Lagi
+        </button>
       </div>
 
       <!-- 4 Mini DPT Statistics Cards -->
@@ -1956,7 +2130,16 @@ async function confirmCloseElection() {
                       {{ v.initials }}
                     </div>
                     <div>
-                      <p class="font-bold text-slate-900">{{ v.name }}</p>
+                      <div class="flex items-center gap-1.5 flex-wrap">
+                        <p class="font-bold text-slate-900">{{ v.name }}</p>
+                        <span
+                          v-if="v.isOrphaned"
+                          class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800"
+                          title="Data relasi mahasiswa belum ditemukan di koleksi master_students"
+                        >
+                          Perlu Sinkronisasi
+                        </span>
+                      </div>
                       <p class="font-mono text-[11px] text-[#582be8] font-semibold">NIM {{ v.nim }}</p>
                       <p class="text-[11px] text-slate-400">{{ v.email }}</p>
                     </div>
@@ -2030,8 +2213,18 @@ async function confirmCloseElection() {
                 </td>
               </tr>
 
+              <!-- Loading State -->
+              <tr v-if="dptLoading && currentElectionVoters.length === 0">
+                <td colspan="8" class="text-center py-12 text-slate-500">
+                  <div class="inline-flex items-center gap-2.5 text-xs font-semibold text-[#582be8]">
+                    <span class="material-symbols-outlined animate-spin text-[20px]">progress_activity</span>
+                    Memuat data DPT dari Cloud Firestore...
+                  </div>
+                </td>
+              </tr>
+
               <!-- Empty State -->
-              <tr v-if="filteredElectionVoters.length === 0">
+              <tr v-if="!dptLoading && filteredElectionVoters.length === 0">
                 <td colspan="8" class="text-center py-12 text-slate-500">
                   <span class="material-symbols-outlined text-[36px] text-slate-300">group_off</span>
                   <p class="text-xs font-semibold text-slate-700 mt-2">Tidak ada pemilih yang sesuai dengan kriteria filter.</p>
@@ -2793,9 +2986,10 @@ async function confirmCloseElection() {
                   type="checkbox"
                   :checked="isAllUnassignedSelected"
                   @change="toggleSelectAllUnassigned"
-                  class="h-4 w-4 rounded border-slate-300 text-[#582be8] focus:ring-[#582be8]/20 cursor-pointer"
+                  :disabled="unassignedMasterStudents.length === 0"
+                  class="h-4 w-4 rounded border-slate-300 text-[#582be8] focus:ring-[#582be8]/20 cursor-pointer disabled:opacity-40"
                 />
-                <span>Pilih Semua Mahasiswa yang Belum Terdaftar</span>
+                <span>Pilih Semua Mahasiswa yang Memenuhi Syarat ({{ unassignedMasterStudents.length }})</span>
               </label>
 
               <span class="font-mono text-xs font-bold text-[#582be8]">
@@ -2823,6 +3017,8 @@ async function confirmCloseElection() {
                       'transition-colors',
                       s.isRegistered
                         ? 'bg-slate-50/50 opacity-60'
+                        : !s.isEligible
+                        ? 'bg-amber-50/30'
                         : selectedStudentIdsToAdd.includes(s.id)
                         ? 'bg-purple-50/40'
                         : 'hover:bg-slate-50/80'
@@ -2831,18 +3027,25 @@ async function confirmCloseElection() {
                     <!-- Checkbox -->
                     <td class="px-4 py-3.5 text-center">
                       <input
-                        v-if="!s.isRegistered"
+                        v-if="!s.isRegistered && s.isEligible"
                         type="checkbox"
                         :value="s.id"
                         v-model="selectedStudentIdsToAdd"
                         class="h-4 w-4 rounded border-slate-300 text-[#582be8] focus:ring-[#582be8]/20 cursor-pointer"
                       />
                       <span
-                        v-else
+                        v-else-if="s.isRegistered"
                         class="material-symbols-outlined text-[18px] text-emerald-600 inline-block"
                         title="Sudah terdaftar di DPT pemilihan ini"
                       >
                         check_circle
+                      </span>
+                      <span
+                        v-else
+                        class="material-symbols-outlined text-[18px] text-amber-500 inline-block"
+                        :title="s.eligibilityReason || 'Tidak memenuhi syarat DPT'"
+                      >
+                        block
                       </span>
                     </td>
 
@@ -2853,8 +3056,20 @@ async function confirmCloseElection() {
                           {{ s.initials }}
                         </div>
                         <div>
-                          <p class="font-bold text-slate-900">{{ s.name }}</p>
+                          <div class="flex items-center gap-1.5 flex-wrap">
+                            <p class="font-bold text-slate-900">{{ s.name }}</p>
+                            <span
+                              v-if="!s.isEligible"
+                              class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800"
+                              :title="s.eligibilityReason"
+                            >
+                              {{ s.academicStatus === 'Cuti Akademik' ? 'Cuti Akademik' : s.accountStatus }}
+                            </span>
+                          </div>
                           <p class="font-mono text-[10px] text-slate-400">NIM {{ s.nim }} • {{ s.email }}</p>
+                          <p v-if="!s.isEligible" class="text-[10px] text-amber-700 font-medium mt-0.5">
+                            {{ s.eligibilityReason }}
+                          </p>
                         </div>
                       </div>
                     </td>
@@ -2882,10 +3097,18 @@ async function confirmCloseElection() {
                         Sudah di DPT
                       </span>
                       <span
+                        v-else-if="!s.isEligible"
+                        class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800"
+                        :title="s.eligibilityReason"
+                      >
+                        <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                        Tidak Memenuhi Syarat
+                      </span>
+                      <span
                         v-else
                         class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-600"
                       >
-                        Belum Terdaftar
+                        Dapat Ditetapkan
                       </span>
                     </td>
                   </tr>
@@ -2916,15 +3139,21 @@ async function confirmCloseElection() {
                 <button
                   type="button"
                   @click="submitAssignVoters"
-                  :disabled="selectedStudentIdsToAdd.length === 0"
+                  :disabled="selectedStudentIdsToAdd.length === 0 || isAssigningDpt"
                   :class="[
                     'px-5 py-2 text-xs font-semibold rounded-xl shadow-md transition cursor-pointer',
-                    selectedStudentIdsToAdd.length > 0
+                    selectedStudentIdsToAdd.length > 0 && !isAssigningDpt
                       ? 'bg-[#582be8] hover:bg-[#471ec7] text-white shadow-purple-600/25'
                       : 'bg-slate-100 text-slate-400 cursor-not-allowed shadow-none'
                   ]"
                 >
-                  Tetapkan Hak Suara ({{ selectedStudentIdsToAdd.length }})
+                  <span v-if="isAssigningDpt" class="inline-flex items-center gap-1.5">
+                    <span class="material-symbols-outlined animate-spin text-[16px]">progress_activity</span>
+                    Menyimpan ke Firestore...
+                  </span>
+                  <span v-else>
+                    Tetapkan Hak Suara ({{ selectedStudentIdsToAdd.length }})
+                  </span>
                 </button>
               </div>
             </div>
@@ -2971,9 +3200,14 @@ async function confirmCloseElection() {
               <button
                 type="button"
                 @click="confirmRemoveVoter"
-                class="flex-1 px-4 py-2.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-md shadow-red-600/25 transition cursor-pointer"
+                :disabled="isRemovingDpt"
+                class="flex-1 px-4 py-2.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-md shadow-red-600/25 transition cursor-pointer disabled:opacity-50"
               >
-                Ya, Cabut Hak Suara
+                <span v-if="isRemovingDpt" class="inline-flex items-center justify-center gap-1.5">
+                  <span class="material-symbols-outlined animate-spin text-[16px]">progress_activity</span>
+                  Mencabut Hak Suara...
+                </span>
+                <span v-else>Ya, Cabut Hak Suara</span>
               </button>
             </div>
           </div>
