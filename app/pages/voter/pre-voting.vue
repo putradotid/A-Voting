@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useVoterSession } from '~/composables/useVoterSession'
 
 definePageMeta({
-  layout: 'voter'
+  layout: 'voter',
+  middleware: 'voter-auth'
 })
 
+const { voter } = useVoterSession()
 const agreed = ref(false)
 </script>
 
@@ -33,18 +36,18 @@ const agreed = ref(false)
           <span class="text-[#582be8]">🪪</span>
 
           <span class="font-semibold">
-            Ahmad Fauzi
+            {{ voter?.name || 'Mahasiswa Pemilih' }}
           </span>
 
           <span class="font-mono text-slate-400">
-            (22.11.1234)
+            ({{ voter?.nim || 'NIM' }})
           </span>
         </div>
 
         <span class="text-slate-300">•</span>
 
         <span>
-          Fakultas Teknik Informatika
+          {{ voter?.faculty || 'Fakultas' }}
         </span>
 
       </div>

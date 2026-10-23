@@ -1,9 +1,13 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useVoterSession } from '~/composables/useVoterSession'
 
 definePageMeta({
-  layout: false
+  layout: false,
+  middleware: 'voter-auth'
 })
+
+const { voter, receipt, getClientCsrfToken } = useVoterSession()
 
 interface ProgramKerjaItem {
   title: string
@@ -31,102 +35,41 @@ interface Candidate {
   programKerja: ProgramKerjaItem[]
 }
 
-const candidates: Candidate[] = [
-  {
-    id: '01',
-    number: '01',
-    title: 'Farhan & Nabila',
-    fullName: 'Muhammad Farhan & Nabila Putri',
-    facultyBadge: 'BEM FT-FEB',
-    photo: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBUExGpIuQjTmx2t9uax_Q5HJRcEObG8QLy91Pwz4WVcQeaT4vw3FAEZF5ZdtptXSgG0XRhi0AaGcT-45Ie2Ii51DfEgU_F3Z7jnkcUWMwnP6UtkEp5guzaiD20rUJKDdYk71aKL3j38287bX9FoWzJ5qJZC_YO4H_w1EMjuPm_g6K44vPEPtviGAAbULzHDJ8u65BGgHR4AfMHoUARCeR9j9CBJ4DFxhKiagiMctRqTV5pwdaEjiHCPA',
-    ketua: {
-      name: 'Muhammad Farhan',
-      nim: '2108101012',
-      prodi: 'S1 Teknik Informatika (FT)'
-    },
-    wakil: {
-      name: 'Nabila Putri',
-      nim: '2102102045',
-      prodi: 'S1 Akuntansi (FEB)'
-    },
-    tagline: '“Sinergi Nyata, Berdampak Bersama”',
-    visi: 'Terwujudnya BEM yang sinergis, adaptif, dan berdampak nyata bagi seluruh civitas akademika melalui penguatan tata kelola organisasi yang transparan, modern, dan berintegritas.',
-    misi: [
-      'Digitalisasi layanan administrasi dan organisasi kemahasiswaan terpadu satu pintu.',
-      'Advokasi hak mahasiswa yang responsif dan pengawalan transparansi kebijakan kampus tanggap 24/7.',
-      'Pemerataan akses beasiswa, riset, serta pengembangan prestasi akademik maupun non-akademik.'
-    ],
-    programKerja: [
-      { title: 'Digitalisasi Ormawa', desc: 'Satu pintu administrasi terpadu' },
-      { title: 'Advokasi Transparan', desc: 'Pelayanan UKT tanggap 24/7' },
-      { title: 'Beasiswa Kampus', desc: 'Akses pendanaan riset merata' }
-    ]
-  },
-  {
-    id: '02',
-    number: '02',
-    title: 'Dimas & Siti',
-    fullName: 'Dimas Arya Prasetya & Siti Rahmawati',
-    facultyBadge: 'BEM FT-FISIP',
-    photo: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDUZUXWyq8lHl78RSQTBsTkQzxcLwqf0PZM2ckU4ns1ZNstpAleqx4vYBT4v5V-4qB_aUIC63ui3Ai7fKkcwaWmLiCyXsyC7VGjAyCIUNojE372e86v8JTiDPOWTDSkJ8OsdjVD-grmktM7MkG0snpvLBEE4GlxSV93jPUkVWZWIdFBf2WeSM9eTuEEfkQLr5toKR0-V-wVlX2dhWvNSivJfh08fz_GkDe9gLgf-JI-Tdeb0jDCwavRPA',
-    ketua: {
-      name: 'Dimas Arya Prasetya',
-      nim: '2104104018',
-      prodi: 'S1 Teknik Elektro (FT)'
-    },
-    wakil: {
-      name: 'Siti Rahmawati',
-      nim: '2109101099',
-      prodi: 'S1 Ilmu Komunikasi (FISIP)'
-    },
-    tagline: '“Kampus Inklusif, Prestasi Berkelanjutan”',
-    visi: 'Mewujudkan BEM sebagai motor penggerak kampus inklusif, kolaboratif, dan berprestasi global yang berpihak pada kesejahteraan dan keadilan seluruh mahasiswa.',
-    misi: [
-      'Pengembangan inkubasi karir kreatif mahasiswa dan akselerasi sertifikasi kompetensi industri.',
-      'Peningkatan fasilitas ramah disabilitas dan aksesibilitas ruang publik gedung kampus.',
-      'Kemandirian ormawa melalui skema crowdfunding legal dan tata kelola dana yang akuntabel.'
-    ],
-    programKerja: [
-      { title: 'Inkubasi Karir Kreatif', desc: 'Akselerasi sertifikasi industri' },
-      { title: 'Fasilitas Disabilitas', desc: 'Aksesibilitas gedung ramah difabel' },
-      { title: 'Dana Ormawa Mandiri', desc: 'Crowdfunding legal kampus' }
-    ]
-  },
-  {
-    id: '03',
-    number: '03',
-    title: 'Bagas & Amanda',
-    fullName: 'Bagas Wicaksono & Amanda Clarissa',
-    facultyBadge: 'BEM FH-FPSI',
-    photo: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCbw28c2ei6uJsELzn1ihDYFYlUoVI-imSyE6S_CCaJjz7Ihy-ylnRj8REA1TLVDfG-isUlz9M_2z1cZyUWABdA7-K6ckfkXIt7JJ-FMW0JooTfi4K_b8oXfiIXug9Fk9Uvu3otAGAC-EN0ysMdqhopur651zoEp2Swm4YXYF344f4GQsfpuF86xDA--Sf7btmi4RghcSa2PX0X0W2KQUWEvQfD5kxqoAlSBFfMA9PbXW_c1ERGHClqWQ',
-    ketua: {
-      name: 'Bagas Wicaksono',
-      nim: '2101103011',
-      prodi: 'S1 Ilmu Hukum (FH)'
-    },
-    wakil: {
-      name: 'Amanda Clarissa',
-      nim: '2107102033',
-      prodi: 'S1 Psikologi (FPsi)'
-    },
-    tagline: '“Integritas Tegas, Suara Mahasiswa Berdaulat”',
-    visi: 'Menegakkan kedaulatan aspirasi mahasiswa melalui kepemimpinan BEM yang berintegritas tinggi, berkeadilan sosial, dan progresif terhadap dinamika kampus.',
-    misi: [
-      'Reformasi regulasi tata kelola ormawa dan penegakan hak konstitusi mahasiswa.',
-      'Penguatan ekosistem riset kolaboratif dan pusat pemikiran saintifik lintas fakultas.',
-      'Transparansi dan akuntabilitas penuh pengelolaan anggaran dana BEM untuk publik.'
-    ],
-    programKerja: [
-      { title: 'Reformasi Regulasi', desc: 'Penegakan hak konstitusi mahasiswa' },
-      { title: 'Kolaborasi Riset', desc: 'Hub saintifik lintas fakultas' },
-      { title: 'Transparansi Anggaran', desc: 'Laporan dana BEM publik' }
-    ]
+// State Pasangan Calon Resmi dari Server (Tanpa Mockup Fallback)
+const serverCandidates = ref<Candidate[]>([])
+const loadingCandidates = ref(true)
+const candidateLoadError = ref<string | null>(null)
+
+async function fetchCandidates() {
+  loadingCandidates.value = true
+  candidateLoadError.value = null
+  selectedCandidateId.value = null
+  try {
+    const res = await $fetch<{ success: boolean; candidates: Candidate[] }>('/api/voter/candidates')
+    if (res.success && Array.isArray(res.candidates)) {
+      serverCandidates.value = res.candidates
+    } else {
+      serverCandidates.value = []
+    }
+  } catch (err: any) {
+    console.warn('[voting.vue] Kendala saat mengambil data kandidat aktif:', err)
+    candidateLoadError.value = err.data?.statusMessage || err.message || 'Gagal memuat daftar pasangan calon dari server. Silakan coba kembali.'
+    serverCandidates.value = []
+  } finally {
+    loadingCandidates.value = false
   }
-]
+}
+
+onMounted(() => {
+  fetchCandidates()
+})
+
+// Hanya menggunakan kandidat yang terverifikasi dari server
+const activeCandidates = computed(() => serverCandidates.value)
 
 // State Pemilihan (Kondisi awal tidak menetapkan paslon otomatis)
 const selectedCandidateId = ref<string | null>(null)
-const selectedCandidate = computed(() => candidates.find(c => c.id === selectedCandidateId.value) || null)
+const selectedCandidate = computed(() => activeCandidates.value.find(c => c.id === selectedCandidateId.value) || null)
 
 function selectCandidate(id: string) {
   selectedCandidateId.value = id
@@ -153,28 +96,51 @@ function closeVisiMisiModal() {
 // State Modal Konfirmasi Pemilihan
 const isConfirmModalOpen = ref(false)
 const isSubmitting = ref(false)
+const submitError = ref<string | null>(null)
 
 function openConfirmModal() {
   if (!selectedCandidate.value) return
+  submitError.value = null
   isConfirmModalOpen.value = true
 }
 
 function closeConfirmModal() {
   if (isSubmitting.value) return
   isConfirmModalOpen.value = false
+  submitError.value = null
 }
 
 async function handleConfirmVote() {
   if (!selectedCandidate.value || isSubmitting.value) return
   isSubmitting.value = true
+  submitError.value = null
 
   try {
-    // Simulasi enkripsi Zero-Knowledge Proof & validasi konsensus buku besar (mock prototype)
-    await new Promise(resolve => setTimeout(resolve, 1400))
-    isConfirmModalOpen.value = false
-    await navigateTo('/voter/receipt')
-  } catch (err) {
-    console.error('Gagal mengirim suara:', err)
+    const token = getClientCsrfToken()
+    const res = await $fetch<{
+      success: boolean
+      alreadyVoted?: boolean
+      message: string
+      receipt: any
+    }>('/api/voter/vote', {
+      method: 'POST',
+      body: { candidateId: selectedCandidate.value.id },
+      headers: token ? { 'x-csrf-token': token } : {}
+    })
+
+    if (res.success && res.receipt) {
+      receipt.value = res.receipt
+      if (voter.value) {
+        voter.value.hasVoted = true
+      }
+      isConfirmModalOpen.value = false
+      await navigateTo('/voter/receipt')
+    } else {
+      throw new Error(res.message || 'Gagal mencatat surat suara ke sistem.')
+    }
+  } catch (err: any) {
+    console.error('[voting.vue] Gagal mengirim suara:', err)
+    submitError.value = err.data?.statusMessage || err.message || 'Terjadi kendala saat mengirim surat suara. Silakan coba kembali.'
   } finally {
     isSubmitting.value = false
   }
@@ -203,17 +169,17 @@ async function handleConfirmVote() {
         <div class="flex items-center gap-2 text-slate-800">
           <span class="text-[#582be8]">🪪</span>
           <span class="font-semibold">
-            Ahmad Fauzi
+            {{ voter?.name || 'Mahasiswa Pemilih' }}
           </span>
           <span class="font-mono text-slate-400">
-            (22.11.1234)
+            ({{ voter?.nim || 'NIM' }})
           </span>
         </div>
 
         <span class="text-slate-300">•</span>
 
         <span>
-          Fakultas Teknik Informatika
+          {{ voter?.faculty || 'Fakultas' }}
         </span>
       </div>
 
@@ -408,10 +374,51 @@ async function handleConfirmVote() {
         </div>
 
 
-        <div class="grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <!-- State 1: Memuat Kandidat -->
+        <div v-if="loadingCandidates" class="rounded-2xl border border-purple-100 bg-white p-12 text-center shadow-sm">
+          <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-purple-50 text-[#582be8] mb-4">
+            <svg class="animate-spin h-7 w-7 text-[#582be8]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+            </svg>
+          </div>
+          <h3 class="text-base font-bold text-slate-800">Memuat Surat Suara Digital...</h3>
+          <p class="text-xs text-slate-500 mt-1">Mengambil daftar pasangan calon terverifikasi KPU dari server.</p>
+        </div>
+
+        <!-- State 2: Gagal Memuat Kandidat -->
+        <div v-else-if="candidateLoadError" class="rounded-2xl border border-red-200 bg-red-50 p-8 text-center shadow-sm">
+          <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-red-100 text-red-600 mb-3 text-xl font-bold">
+            ✕
+          </div>
+          <h3 class="text-base font-bold text-red-900">Gagal Memuat Daftar Pasangan Calon</h3>
+          <p class="text-xs text-red-700 mt-1 max-w-md mx-auto">{{ candidateLoadError }}</p>
+          <button
+            type="button"
+            @click="fetchCandidates"
+            class="mt-4 inline-flex items-center gap-2 rounded-xl bg-[#582be8] px-5 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-[#471ec7] transition cursor-pointer"
+          >
+            <span>Coba Lagi / Muat Ulang</span>
+            <span>↻</span>
+          </button>
+        </div>
+
+        <!-- State 3: Daftar Kandidat Kosong -->
+        <div v-else-if="activeCandidates.length === 0" class="rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center shadow-sm">
+          <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-100 text-amber-600 mb-3 text-xl">
+            ⚠️
+          </div>
+          <h3 class="text-base font-bold text-amber-900">Belum Ada Kandidat Terverifikasi</h3>
+          <p class="text-xs text-amber-700 mt-1 max-w-md mx-auto">
+            Saat ini belum ada pasangan calon yang memenuhi syarat untuk dimasukkan ke dalam surat suara pemilihan ini. Pemungutan suara belum dapat dilanjutkan.
+          </p>
+        </div>
+
+        <!-- State 4: Tampilkan Grid Pasangan Calon dari Server -->
+        <div v-else class="grid grid-cols-1 gap-6 xl:grid-cols-3">
 
           <article
-            v-for="candidate in candidates"
+            v-for="candidate in activeCandidates"
             :key="candidate.id"
             :class="[
               'relative flex flex-col justify-between overflow-hidden rounded-2xl p-5 transition-all duration-200',
@@ -723,11 +730,11 @@ async function handleConfirmVote() {
 
           <button
             type="button"
-            :disabled="!selectedCandidate"
+            :disabled="!selectedCandidate || loadingCandidates || activeCandidates.length === 0"
             @click="openConfirmModal"
             :class="[
               'rounded-xl px-6 py-3 text-xs sm:text-sm font-semibold text-white transition flex items-center justify-center gap-2',
-              selectedCandidate
+              (selectedCandidate && !loadingCandidates && activeCandidates.length > 0)
                 ? 'bg-[#582be8] hover:bg-[#471ec7] shadow-md shadow-purple-600/30 cursor-pointer active:scale-95'
                 : 'bg-[#582be8] opacity-50 cursor-not-allowed pointer-events-none'
             ]"
@@ -968,9 +975,14 @@ async function handleConfirmVote() {
               </div>
             </div>
 
-            <!-- Mock Notice -->
-            <div class="rounded-lg bg-slate-50 border border-slate-200/80 p-2.5 text-[11px] text-slate-500 text-center mb-6">
-              ℹ️ <em>Mode Simulasi (Mock Prototype): Suara akan diverifikasi dan diarahkan ke bukti tanda terima suara.</em>
+            <!-- Error Box -->
+            <div v-if="submitError" class="rounded-xl bg-red-50 border border-red-200 p-3.5 text-xs text-red-800 leading-relaxed mb-6">
+              <div class="flex items-start gap-2">
+                <span class="text-red-600 font-bold">✕</span>
+                <div>
+                  <strong>Gagal Mengirim Suara:</strong> {{ submitError }}
+                </div>
+              </div>
             </div>
 
             <!-- Actions -->

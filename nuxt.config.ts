@@ -19,6 +19,14 @@ export default defineNuxtConfig({
     }
   },
   runtimeConfig: {
+    // Server-only runtime config (tidak pernah diekspos ke browser / client bundle)
+    firebaseAdminProjectId: process.env.FIREBASE_ADMIN_PROJECT_ID || '',
+    firebaseAdminClientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL || '',
+    firebaseAdminPrivateKey: process.env.FIREBASE_ADMIN_PRIVATE_KEY || '',
+    firebaseAdminServiceAccountPath: process.env.FIREBASE_ADMIN_SERVICE_ACCOUNT_PATH || '',
+    voterSessionSecret: process.env.VOTER_SESSION_SECRET || '',
+    testActiveElectionId: process.env.TEST_ACTIVE_ELECTION_ID || '',
+
     public: {
       firebaseApiKey: process.env.NUXT_PUBLIC_FIREBASE_API_KEY || '',
       firebaseAuthDomain: process.env.NUXT_PUBLIC_FIREBASE_AUTH_DOMAIN || '',

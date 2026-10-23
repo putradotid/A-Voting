@@ -1,3 +1,45 @@
+<script setup lang="ts">
+import { ref, computed } from 'vue'
+import { useVoterSession } from '~/composables/useVoterSession'
+
+definePageMeta({
+  layout: false,
+  middleware: 'voter-auth'
+})
+
+const { voter, receipt, logout } = useVoterSession()
+
+const electionTitle = computed(() => receipt.value?.electionName || voter.value?.electionName || 'Pemilihan Raya Mahasiswa')
+const voterName = computed(() => voter.value?.name || receipt.value?.voter?.name || 'Mahasiswa Pemilih')
+const voterNim = computed(() => voter.value?.nim || receipt.value?.voter?.nim || '-')
+const voterFaculty = computed(() => {
+  const f = voter.value?.faculty || receipt.value?.voter?.faculty || 'Fakultas'
+  const m = voter.value?.major || receipt.value?.voter?.major || ''
+  return m ? `${f} • ${m}` : f
+})
+const formattedVotedAt = computed(() => {
+  const ts = receipt.value?.votedAt
+  if (!ts) return 'Terverifikasi Resmi KPU-M'
+  try {
+    const d = new Date(ts)
+    return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) + ' • ' +
+           d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' WIB'
+  } catch {
+    return ts
+  }
+})
+const receiptToken = computed(() => receipt.value?.receiptToken || 'TOKEN-SEDANG-DIVERIFIKASI')
+
+const isCopied = ref(false)
+function copyToken() {
+  if (navigator?.clipboard && receiptToken.value) {
+    navigator.clipboard.writeText(receiptToken.value)
+    isCopied.value = true
+    setTimeout(() => { isCopied.value = false }, 2000)
+  }
+}
+</script>
+
 <template>
   <div class="min-h-screen bg-[#f8f9ff] text-[#0b1c30]">
 
@@ -32,7 +74,7 @@
             <div
               class="inline-flex items-center gap-2 rounded-full bg-[#e9ddff] px-3 py-1 text-[11px] font-medium text-[#23005c]">
               <span class="h-2 w-2 animate-pulse rounded-full bg-[#4000c6]"></span>
-              Pemilihan Raya BEM 2025
+              {{ electionTitle }}
             </div>
 
             <div
@@ -51,26 +93,24 @@
 
           <div class="hidden text-right sm:flex sm:flex-col">
             <span class="text-sm font-semibold leading-tight">
-              Ahmad Fauzi
+              {{ voter?.name || 'Mahasiswa Pemilih' }}
             </span>
 
             <span class="text-[11px] leading-tight text-[#484456]">
-              Mhs. Aktif / NIK: 3271****48
+              Mhs. Aktif / NIM: {{ voter?.nim || '-' }}
             </span>
           </div>
 
           <div
-            class="flex h-8 w-8 items-center justify-center rounded-full bg-[#4000c6] text-white ring-2 ring-[#e6deff]">
-            <span class="material-symbols-outlined text-[18px]">
-              person
-            </span>
+            class="flex h-8 w-8 items-center justify-center rounded-full bg-[#4000c6] text-white ring-2 ring-[#e6deff] text-xs font-bold">
+            {{ voter?.name ? voter.name.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase() : '👤' }}
           </div>
 
-          <NuxtLink to="/voter/logout" title="Keluar / Selesai" class="rounded-lg p-2 text-red-600 hover:bg-red-50">
+          <button @click="logout" type="button" title="Keluar / Selesai" class="rounded-lg p-2 text-red-600 hover:bg-red-50 cursor-pointer">
             <span class="material-symbols-outlined text-[20px]">
               logout
             </span>
-          </NuxtLink>
+          </button>
 
         </div>
 
@@ -128,11 +168,11 @@
             <div class="flex flex-col text-right">
 
               <span class="text-[10px] uppercase tracking-wider text-[#797488]">
-                Waktu Stempel Blok
+                Waktu Stempel Transaksi
               </span>
 
               <span class="font-mono text-xs font-semibold">
-                24 Okt 2025 • 14:32:18 WIB
+                {{ formattedVotedAt }}
               </span>
 
             </div>
@@ -367,16 +407,11 @@
 
                   Hak suara Anda untuk
                   <span class="font-semibold text-[#0b1c30]">
-                    Pemilihan Raya Ketua & Wakil Ketua BEM 2025
+                    {{ electionTitle }}
                   </span>
 
-                  telah berhasil dienkripsi melalui skema
-                  <span class="font-mono font-medium text-[#4000c6]">
-                    Zero-Knowledge Proofs
-                  </span>
-
-                  dan diverifikasi ke dalam buku besar konsensus A-Vote.
-                  Pilihan kandidat Anda dirahasiakan mutlak secara matematis.
+                  telah berhasil dicatat ke dalam sistem A-Vote secara sah dan terisolasi.
+                  Pilihan kandidat Anda dirahasiakan dan dipisahkan sepenuhnya dari identitas pemilih.
 
                 </p>
 
@@ -394,11 +429,11 @@
                       </span>
 
                       <span class="text-lg font-semibold">
-                        Ahmad Fauzi
+                        {{ voterName }}
                       </span>
 
                       <span class="text-xs text-[#484456]">
-                        Fakultas Teknik • Teknik Informatika
+                        {{ voterFaculty }}
                       </span>
 
                     </div>
@@ -413,7 +448,7 @@
                       <div class="flex items-center gap-2">
 
                         <span class="font-mono text-sm font-bold">
-                          22.11.1234
+                          {{ voterNim }}
                         </span>
 
                         <span
@@ -441,14 +476,14 @@
                     <div class="flex items-center justify-between">
 
                       <span class="text-[10px] uppercase tracking-wider text-[#797488]">
-                        Token Transaksi Suara (Ballot Receipt Hash)
+                        Token Bukti Partisipasi Pemilih (Participation Token)
                       </span>
 
                       <span class="flex items-center gap-1 text-[11px] font-medium text-[#4000c6]">
                         <span class="material-symbols-outlined text-[14px]">
                           shield
                         </span>
-                        Enkripsi End-to-End
+                        HMAC-SHA256 Tersegel
                       </span>
 
                     </div>
@@ -457,16 +492,17 @@
                     <div class="flex items-center justify-between gap-2 rounded-lg bg-white p-3 shadow-sm">
 
                       <span class="select-all truncate font-mono text-xs font-semibold tracking-tight">
-                        0x8f2a9c3d4e177b94ce5180f92ab8d035e407ac9412e75e6a39d892cb17e4d
+                        {{ receiptToken }}
                       </span>
 
                       <button type="button"
-                        class="inline-flex shrink-0 items-center gap-1 rounded-md bg-[#e6deff] px-3 py-1.5 text-xs font-semibold text-[#1b0062]">
+                        @click="copyToken"
+                        class="inline-flex shrink-0 items-center gap-1 rounded-md bg-[#e6deff] px-3 py-1.5 text-xs font-semibold text-[#1b0062] cursor-pointer hover:bg-[#d8ccff] transition">
                         <span class="material-symbols-outlined text-[16px]">
-                          content_copy
+                          {{ isCopied ? 'done' : 'content_copy' }}
                         </span>
 
-                        Salin
+                        {{ isCopied ? 'Tersalin!' : 'Salin' }}
                       </button>
 
                     </div>

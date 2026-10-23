@@ -1,7 +1,39 @@
 <script setup lang="ts">
+import { ref } from 'vue'
+import { useVoterSession } from '~/composables/useVoterSession'
+
 definePageMeta({
-  layout: 'auth'
+  layout: 'auth',
+  middleware: 'voter-auth'
 })
+
+const { login, loading } = useVoterSession()
+
+const nim = ref('')
+const dob = ref('')
+const errorMessage = ref('')
+
+async function handleLogin() {
+  if (loading.value) return
+
+  if (!nim.value.trim() || !dob.value.trim()) {
+    errorMessage.value = 'NIM dan tanggal lahir wajib diisi.'
+    return
+  }
+
+  errorMessage.value = ''
+
+  try {
+    const voter = await login(nim.value.trim(), dob.value.trim())
+    if (voter.hasVoted) {
+      await navigateTo('/voter/receipt')
+    } else {
+      await navigateTo('/voter/pre-voting')
+    }
+  } catch (err: any) {
+    errorMessage.value = err.message || 'Gagal masuk ke bilik suara. Periksa kembali NIM dan tanggal lahir Anda.'
+  }
+}
 </script>
 
 <template>
@@ -146,7 +178,13 @@ definePageMeta({
                 </p>
               </div>
 
-              <form class="space-y-5">
+              <form @submit.prevent="handleLogin" class="space-y-5">
+
+                <!-- Alert Pesan Kegagalan Generik -->
+                <div v-if="errorMessage" class="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-start gap-2.5 animate-shake">
+                  <span class="text-base shrink-0 leading-none">⚠️</span>
+                  <p class="leading-relaxed font-medium">{{ errorMessage }}</p>
+                </div>
 
                 <!-- NIM -->
                 <div>
@@ -159,7 +197,7 @@ definePageMeta({
                       🪪
                     </span>
 
-                    <input id="nim" name="nim" type="text" placeholder="Contoh: 2108101012" autocomplete="username"
+                    <input id="nim" v-model="nim" name="nim" type="text" placeholder="Contoh: 2108101012" autocomplete="username"
                       class="w-full h-12 pl-11 pr-4 bg-slate-50 border border-purple-100 rounded-xl text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-[#582be8] focus:ring-2 focus:ring-purple-100 transition-all duration-200" />
                   </div>
                 </div>
@@ -175,7 +213,7 @@ definePageMeta({
                       📅
                     </span>
 
-                    <input id="dob" name="dob" type="text" placeholder="Contoh : ddmmyyyy"
+                    <input id="dob" v-model="dob" name="dob" type="text" placeholder="Contoh : ddmmyyyy atau YYYY-MM-DD"
                       class="w-full h-12 pl-11 pr-4 bg-slate-50 border border-purple-100 rounded-xl text-sm text-slate-800 focus:outline-none focus:bg-white focus:border-[#582be8] focus:ring-2 focus:ring-purple-100 transition-all duration-200" />
                   </div>
 
@@ -184,18 +222,23 @@ definePageMeta({
                   </p>
                 </div>
 
-                <NuxtLink to="/voter/pre-voting"
-                  class="w-full h-12 bg-[#582be8] hover:bg-[#4820ca] text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 shadow-md shadow-purple-600/15 hover:shadow-lg hover:shadow-purple-600/20 transition-all duration-200 active:scale-[0.99]">
-                  <span>Masuk ke Bilik Suara</span>
-                  <span>→</span>
-                </NuxtLink>
-                <!-- <button
+                <button
                   type="submit"
-                  class="w-full h-12 bg-[#582be8] hover:bg-[#4820ca] text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 shadow-md shadow-purple-600/15 hover:shadow-lg hover:shadow-purple-600/20 transition-all duration-200 active:scale-[0.99]"
+                  :disabled="loading"
+                  class="w-full h-12 bg-[#582be8] hover:bg-[#4820ca] disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 shadow-md shadow-purple-600/15 hover:shadow-lg hover:shadow-purple-600/20 transition-all duration-200 active:scale-[0.99] cursor-pointer"
                 >
-                  <span>Masuk ke Bilik Suara</span>
-                  <span>→</span>
-                </button> -->
+                  <template v-if="loading">
+                    <svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                    </svg>
+                    <span>Memverifikasi Identitas...</span>
+                  </template>
+                  <template v-else>
+                    <span>Masuk ke Bilik Suara</span>
+                    <span>→</span>
+                  </template>
+                </button>
 
               </form>
 

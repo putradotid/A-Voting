@@ -75,6 +75,13 @@ service cloud.firestore {
       allow read, write: if isAuthorizedAdmin();
     }
 
+    // 7. Koleksi Surat Suara Anonim (Election Votes)
+    // SANGAT RAHASIA: Seluruh akses baca dan tulis langsung dari browser klien DITOLAK MUTLAK.
+    // Hanya dapat dimanipulasi oleh backend server terpercaya melalui Firebase Admin SDK.
+    match /election_votes/{voteId} {
+      allow read, write: if false;
+    }
+
     // =========================================================================
     // DEFAULT DENY RULE
     // =========================================================================

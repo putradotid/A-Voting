@@ -30,6 +30,7 @@ export interface StudentMaster {
   authStatus: 'Kredensial Siap' | 'OTP / SSO Aktif' | 'Belum Digenerate' | 'Ditangguhkan'
   authNote?: string
   phone?: string
+  birthDate?: string // Format ISO YYYY-MM-DD untuk kebutuhan autentikasi pemilih
   registeredAt: string
   legacyId?: string // Pemetaan ID lama (e.g. 'MHS-001') untuk kompatibilitas DPT
   createdAt?: string
@@ -297,12 +298,55 @@ export const DUMMY_STUDENTS_MASTER: StudentMaster[] = [
   }
 ]
 
+// ─── Helper: Validasi Format Tanggal Lahir (YYYY-MM-DD) ───────────────────────
+/**
+ * Memvalidasi apakah string tanggal lahir sesuai format YYYY-MM-DD,
+ * merupakan tanggal kalender yang valid, dan tidak berada di masa depan.
+ */
+export function isValidBirthDate(dateStr?: string | null): boolean {
+  if (!dateStr || typeof dateStr !== 'string') return false
+  const trimmed = dateStr.trim()
+  const regex = /^\d{4}-\d{2}-\d{2}$/
+  if (!regex.test(trimmed)) return false
+
+  const [yearStr, monthStr, dayStr] = trimmed.split('-')
+  const year = Number(yearStr)
+  const month = Number(monthStr)
+  const day = Number(dayStr)
+
+  const currentYear = new Date().getFullYear()
+  if (year < 1940 || year > currentYear) return false
+  if (month < 1 || month > 12) return false
+  if (day < 1 || day > 31) return false
+
+  const dateObj = new Date(year, month - 1, day)
+  if (
+    dateObj.getFullYear() !== year ||
+    dateObj.getMonth() !== month - 1 ||
+    dateObj.getDate() !== day
+  ) {
+    return false
+  }
+
+  const today = new Date()
+  today.setHours(23, 59, 59, 999)
+  if (dateObj > today) {
+    return false
+  }
+
+  return true
+}
+
 // ─── Helper: Normalisasi Dokumen Firestore ─────────────────────────────────────
 export function normalizeFirestoreStudent(id: string, data: DocumentData): StudentMaster {
   const nim = String(data.nim || id).trim()
   const name = String(data.name || '').trim()
   const initials = String(data.initials || '').trim() ||
     name.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase() || 'MH'
+
+  // Normalisasi birthDate: string YYYY-MM-DD jika ada dan valid, atau undefined jika tidak tersedia pada dokumen lama
+  const rawBirthDate = data.birthDate ? String(data.birthDate).trim() : undefined
+  const birthDate = rawBirthDate && isValidBirthDate(rawBirthDate) ? rawBirthDate : undefined
 
   return {
     id: data.legacyId ? String(data.legacyId).trim() : String(data.id || nim).trim(),
@@ -322,6 +366,7 @@ export function normalizeFirestoreStudent(id: string, data: DocumentData): Stude
     authStatus: data.authStatus || 'Kredensial Siap',
     authNote: data.authNote ? String(data.authNote).trim() : undefined,
     phone: data.phone ? String(data.phone).trim() : undefined,
+    birthDate,
     registeredAt: String(data.registeredAt || 'Hari ini'),
     legacyId: data.legacyId ? String(data.legacyId).trim() : undefined,
     createdAt: data.createdAt ? String(data.createdAt) : undefined,
@@ -458,6 +503,15 @@ export const useStudentsMaster = () => {
       year: 'numeric'
     })
 
+    let validBirthDate: string | undefined = undefined
+    if (data.birthDate && String(data.birthDate).trim()) {
+      const cleanDob = String(data.birthDate).trim()
+      if (!isValidBirthDate(cleanDob)) {
+        throw new Error('Format tanggal lahir tidak valid (gunakan format YYYY-MM-DD) atau tanggal berada di masa depan.')
+      }
+      validBirthDate = cleanDob
+    }
+
     const newStudent: StudentMaster = {
       id: rawNim,
       nim: rawNim,
@@ -476,6 +530,7 @@ export const useStudentsMaster = () => {
       authStatus: data.authStatus || 'Kredensial Siap',
       authNote: data.authNote ? data.authNote.trim() : 'Kredensial Baru Dibuat',
       phone: data.phone ? data.phone.trim() : undefined,
+      birthDate: validBirthDate,
       registeredAt: data.registeredAt || todayFormatted,
       createdAt: now,
       updatedAt: now
@@ -524,6 +579,19 @@ export const useStudentsMaster = () => {
 
     const now = new Date().toISOString()
 
+    let validBirthDate: string | undefined = currentStudent.birthDate
+    if (updates.birthDate !== undefined) {
+      const cleanDob = String(updates.birthDate || '').trim()
+      if (cleanDob) {
+        if (!isValidBirthDate(cleanDob)) {
+          throw new Error('Format tanggal lahir tidak valid (gunakan format YYYY-MM-DD) atau tanggal berada di masa depan.')
+        }
+        validBirthDate = cleanDob
+      } else {
+        validBirthDate = undefined
+      }
+    }
+
     // Proteksi: jangan izinkan perubahan NIM atau ID dokumen melalui edit biasa
     const updatedStudent: StudentMaster = {
       ...currentStudent,
@@ -532,6 +600,7 @@ export const useStudentsMaster = () => {
       nim: rawNim,
       name: rawName,
       initials,
+      birthDate: validBirthDate,
       updatedAt: now
     }
 
@@ -730,6 +799,7 @@ export const useStudentsMaster = () => {
     deleteStudent,
     checkStudentInDpt,
     migrateDummyStudents,
+    isValidBirthDate,
     DUMMY_STUDENTS_MASTER
   }
 

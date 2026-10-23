@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { useStudentsMaster, type StudentMaster, type StudentMigrationResult } from '~/composables/useStudentsMaster'
+import { useStudentsMaster, isValidBirthDate, type StudentMaster, type StudentMigrationResult } from '~/composables/useStudentsMaster'
 
 definePageMeta({
   layout: 'admin',
   middleware: 'admin-auth',
   alias: '/admin/voters'
 })
+
+// Tanggal hari ini dalam format ISO YYYY-MM-DD sebagai batas maksimal tanggal lahir (mencegah tanggal di masa depan)
+const todayIso = computed(() => new Date().toISOString().split('T')[0])
 
 // ─── Master Students Firestore Integration ────────────────────────────
 const {
@@ -200,6 +203,7 @@ const isSubmitting = ref(false)
 const addForm = ref({
   nim: '',
   name: '',
+  birthDate: '',
   email: '',
   facultyCode: 'FT',
   major: '',
@@ -213,6 +217,7 @@ function openAddModal() {
   addForm.value = {
     nim: '',
     name: '',
+    birthDate: '',
     email: '',
     facultyCode: 'FT',
     major: '',
@@ -241,6 +246,13 @@ async function submitAddForm() {
     return
   }
 
+  // Validasi format tanggal lahir jika diisi oleh admin
+  const trimmedDob = addForm.value.birthDate?.trim() || ''
+  if (trimmedDob && !isValidBirthDate(trimmedDob)) {
+    addError.value = 'Format tanggal lahir tidak valid (gunakan format YYYY-MM-DD) atau tanggal berada di masa depan.'
+    return
+  }
+
   isSubmitting.value = true
   addError.value = ''
 
@@ -264,6 +276,7 @@ async function submitAddForm() {
       academicStatus: addForm.value.academicStatus,
       authStatus: 'Kredensial Siap',
       authNote: 'Kredensial Baru Dibuat',
+      birthDate: trimmedDob || undefined,
       registeredAt: 'Hari ini'
     })
 
@@ -283,6 +296,7 @@ const editError = ref('')
 const editForm = ref({
   nim: '',
   name: '',
+  birthDate: '',
   email: '',
   facultyCode: 'FT',
   major: '',
@@ -300,6 +314,7 @@ function openEditModal(student: StudentMaster) {
   editForm.value = {
     nim: student.nim,
     name: student.name,
+    birthDate: student.birthDate || '',
     email: student.email,
     facultyCode: student.facultyCode || 'FT',
     major: student.major || '',
@@ -324,6 +339,13 @@ async function submitEditForm() {
     return
   }
 
+  // Validasi format tanggal lahir jika diisi oleh admin
+  const trimmedDob = editForm.value.birthDate?.trim() || ''
+  if (trimmedDob && !isValidBirthDate(trimmedDob)) {
+    editError.value = 'Format tanggal lahir tidak valid (gunakan format YYYY-MM-DD) atau tanggal berada di masa depan.'
+    return
+  }
+
   isUpdating.value = true
   editError.value = ''
 
@@ -334,6 +356,7 @@ async function submitEditForm() {
 
     const updated = await updateStudent(rawNim, {
       name: rawName,
+      birthDate: trimmedDob || undefined,
       email: editForm.value.email.trim() || `${rawNim}@student.ac.id`,
       faculty,
       facultyCode: editForm.value.facultyCode,
@@ -1269,6 +1292,21 @@ function handleResetAuth(student: StudentMaster) {
                 />
               </div>
 
+              <!-- Tanggal Lahir (Kredensial Bilik Suara) -->
+              <div>
+                <div class="flex items-center justify-between mb-1">
+                  <label class="block font-semibold text-slate-700">Tanggal Lahir (Kredensial Bilik Suara)</label>
+                  <span class="font-mono text-[10px] text-slate-400">Opsional • Format YYYY-MM-DD</span>
+                </div>
+                <input
+                  v-model="addForm.birthDate"
+                  type="date"
+                  :max="todayIso"
+                  class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:border-[#582be8] focus:bg-white text-xs"
+                />
+                <p class="mt-1 text-[10px] text-slate-400">Digunakan sebagai kredensial verifikasi identitas saat login pemilih. Data ini dirahasiakan dan tidak ditampilkan di tabel publik.</p>
+              </div>
+
               <!-- Email Kampus -->
               <div>
                 <label class="block font-semibold text-slate-700 mb-1">Email Kampus (Siakad)</label>
@@ -1424,6 +1462,21 @@ function handleResetAuth(student: StudentMaster) {
                   placeholder="Nama Lengkap"
                   class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#582be8] focus:bg-white"
                 />
+              </div>
+
+              <!-- Tanggal Lahir (Kredensial Bilik Suara) -->
+              <div>
+                <div class="flex items-center justify-between mb-1">
+                  <label class="block font-semibold text-slate-700">Tanggal Lahir (Kredensial Bilik Suara)</label>
+                  <span class="font-mono text-[10px] text-slate-400">Opsional • Format YYYY-MM-DD</span>
+                </div>
+                <input
+                  v-model="editForm.birthDate"
+                  type="date"
+                  :max="todayIso"
+                  class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:border-[#582be8] focus:bg-white text-xs"
+                />
+                <p class="mt-1 text-[10px] text-slate-400">Digunakan sebagai kredensial verifikasi identitas saat login pemilih. Data ini dirahasiakan dan tidak ditampilkan di tabel publik.</p>
               </div>
 
               <!-- Email Kampus -->
