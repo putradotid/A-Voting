@@ -17,6 +17,7 @@ const {
   masterCandidatesLoading,
   masterCandidatesError,
   fetchMasterCandidates,
+  fetchCandidateParticipations,
   electionCandidateParticipationsDatabase,
   candidatesDatabase,
   getAllMasterCandidates,
@@ -37,7 +38,10 @@ const {
 } = useElectionCandidates()
 
 onMounted(async () => {
-  await fetchMasterCandidates()
+  await Promise.all([
+    fetchMasterCandidates(),
+    fetchCandidateParticipations()
+  ])
 })
 
 function getCandidateParticipationsList(candidateId: string) {

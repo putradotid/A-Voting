@@ -10,7 +10,7 @@ import {
   resetRateLimit,
   hashRateLimitKey
 } from '../../utils/rateLimit'
-import { normalizeDateInput } from '../../utils/dateNormalizer'
+import { normalizeDateInput, normalizeFirestoreBirthDate } from '../../utils/dateNormalizer'
 import { resolveActiveElectionId } from '../../utils/activeElection'
 
 export default defineEventHandler(async (event) => {
@@ -18,7 +18,7 @@ export default defineEventHandler(async (event) => {
   const rawNim = String(body?.nim || '').trim()
   const rawDob = String(body?.dob || body?.birthDate || '').trim()
 
-  // 1. Validasi keberadaan input
+  // 1. Validasi keberadaan input form
   if (!rawNim || !rawDob) {
     throw createError({
       statusCode: 400,
@@ -35,16 +35,16 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  // 2. Normalisasi format tanggal lahir ke YYYY-MM-DD
-  const normalizedDob = normalizeDateInput(rawDob)
-  if (!normalizedDob) {
+  // 2. Normalisasi format tanggal lahir dari input formulir ke format "YYYY-MM-DD"
+  const normalizedInputDob = normalizeDateInput(rawDob)
+  if (!normalizedInputDob) {
     throw createError({
       statusCode: 400,
-      statusMessage: 'Format tanggal lahir tidak valid. Gunakan format ddmmyyyy atau YYYY-MM-DD.'
+      statusMessage: 'Format tanggal lahir tidak valid. Gunakan format YYYY-MM-DD.'
     })
   }
 
-  // 3. Verifikasi ketersediaan Firebase Admin SDK
+  // 3. Verifikasi ketersediaan Firebase Admin Firestore di server
   const db = getAdminFirestore()
   if (!db) {
     throw createError({
@@ -53,12 +53,12 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  // 4. Rate limiting per IP dan per NIM (Mencegah brute-force pada tanggal lahir)
+  // 4. Rate Limiting per IP dan per NIM (Proteksi Brute-Force)
   const clientIp = getRequestIP(event, { xForwardedFor: true }) || '127.0.0.1'
   const ipKey = hashRateLimitKey('ip_login', clientIp)
   const nimKey = hashRateLimitKey('nim_login', cleanNim)
 
-  const ipLimit = await checkRateLimit(ipKey, 10, 300, 900)
+  const ipLimit = await checkRateLimit(ipKey, 15, 300, 900)
   if (!ipLimit.allowed) {
     throw createError({
       statusCode: 429,
@@ -66,7 +66,7 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const nimLimit = await checkRateLimit(nimKey, 5, 300, 900)
+  const nimLimit = await checkRateLimit(nimKey, 8, 300, 900)
   if (!nimLimit.allowed) {
     throw createError({
       statusCode: 429,
@@ -74,60 +74,65 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  // Pesan kegagalan generik anti-enumerasi: penyerang tidak dapat membedakan apakah NIM terdaftar,
-  // tanggal lahir cocok, mahasiswa cuti, belum terdaftar di DPT, atau telah menggunakan hak suara.
-  const GENERIC_AUTH_ERROR = 'NIM atau tanggal lahir tidak cocok, atau Anda tidak memenuhi syarat sebagai pemilih pada agenda pemilihan ini.'
-
   try {
-    // 5. Ambil HANYA dokumen spesifik master_students/{nim} (Akses privat server)
+    // 5. Validasi Dokumen NIM di koleksi 'master_students'
     const studentDocRef = db.collection('master_students').doc(cleanNim)
     const studentDocSnap = await studentDocRef.get()
 
+    // [VALIDASI 1]: Jika dokumen NIM tidak ada
     if (!studentDocSnap.exists) {
-      await recordFailedAttempt(ipKey, 10, 300, 900)
-      await recordFailedAttempt(nimKey, 5, 300, 900)
-      console.warn('[Voter Login] Autentikasi ditolak: Dokumen mahasiswa tidak ditemukan.')
+      await recordFailedAttempt(ipKey, 15, 300, 900)
+      await recordFailedAttempt(nimKey, 8, 300, 900)
       throw createError({
-        statusCode: 401,
-        statusMessage: GENERIC_AUTH_ERROR
+        statusCode: 404,
+        statusMessage: 'NIM tidak terdaftar.'
       })
     }
 
-    const studentData = studentDocSnap.data()
+    const studentData = studentDocSnap.data() || {}
 
-    // 6. Validasi kecocokan tanggal lahir
-    if (!studentData?.birthDate || String(studentData.birthDate).trim() !== normalizedDob) {
-      await recordFailedAttempt(ipKey, 10, 300, 900)
-      await recordFailedAttempt(nimKey, 5, 300, 900)
-      console.warn('[Voter Login] Autentikasi ditolak: Tanggal lahir tidak cocok.')
+    // 6. Validasi Field Tanggal Lahir di Database
+    const rawDbBirthDate =
+      studentData.birthDate ??
+      studentData.birth_date ??
+      studentData.tanggalLahir ??
+      studentData.tanggal_lahir
+
+    const normalizedDbDob = normalizeFirestoreBirthDate(rawDbBirthDate)
+
+    // [VALIDASI 2]: Jika field tanggal lahir di database kosong / null / tidak valid
+    if (!normalizedDbDob) {
+      await recordFailedAttempt(ipKey, 15, 300, 900)
       throw createError({
-        statusCode: 401,
-        statusMessage: GENERIC_AUTH_ERROR
+        statusCode: 422,
+        statusMessage: 'Data tanggal lahir belum tercatat.'
       })
     }
 
-    // 7. Validasi status akun dan status akademik mahasiswa
-    if (studentData.accountStatus !== 'Aktif & Terverifikasi') {
-      await recordFailedAttempt(ipKey, 10, 300, 900)
-      await recordFailedAttempt(nimKey, 5, 300, 900)
-      console.warn('[Voter Login] Autentikasi ditolak: Status akun mahasiswa bukan Aktif & Terverifikasi.')
+    // [VALIDASI 3]: Jika tanggal lahir dari form tidak cocok dengan hasil normalisasi dari database
+    if (normalizedInputDob !== normalizedDbDob) {
+      await recordFailedAttempt(ipKey, 15, 300, 900)
+      await recordFailedAttempt(nimKey, 8, 300, 900)
       throw createError({
         statusCode: 401,
-        statusMessage: GENERIC_AUTH_ERROR
+        statusMessage: 'Tanggal lahir yang dimasukkan salah.'
       })
     }
 
-    if (studentData.academicStatus === 'Cuti Akademik') {
-      await recordFailedAttempt(ipKey, 10, 300, 900)
-      await recordFailedAttempt(nimKey, 5, 300, 900)
-      console.warn('[Voter Login] Autentikasi ditolak: Mahasiswa berstatus Cuti Akademik.')
+    // 7. Validasi Status Akun Mahasiswa
+    const accountStatus = studentData.status_akun || studentData.accountStatus
+
+    // [VALIDASI 4]: Jika status_akun atau accountStatus bukan "Aktif & Terverifikasi" atau "Aktif"
+    if (accountStatus !== 'Aktif & Terverifikasi' && accountStatus !== 'Aktif') {
+      await recordFailedAttempt(ipKey, 15, 300, 900)
+      await recordFailedAttempt(nimKey, 8, 300, 900)
       throw createError({
-        statusCode: 401,
-        statusMessage: GENERIC_AUTH_ERROR
+        statusCode: 403,
+        statusMessage: 'Akun Anda belum terverifikasi.'
       })
     }
 
-    // 8. Ambil referensi agenda pemilihan aktif (mendukung sandbox dev terisolasi)
+    // 8. Ambil referensi agenda pemilihan aktif
     const activeElectionId = await resolveActiveElectionId(db)
     if (!activeElectionId) {
       throw createError({
@@ -136,7 +141,6 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    // Ambil dokumen agenda pemilihan terkait
     const electionDocRef = db.collection('elections').doc(activeElectionId)
     const electionDocSnap = await electionDocRef.get()
 
@@ -149,7 +153,7 @@ export default defineEventHandler(async (event) => {
 
     const electionData = electionDocSnap.data()
 
-    // Validasi status pemilihan: harus 'Berlangsung'
+    // Validasi status pemilihan
     if (electionData?.status !== 'Berlangsung') {
       throw createError({
         statusCode: 400,
@@ -157,35 +161,24 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    // Validasi jadwal pemilihan jika tersedia rentang waktu
-    if (electionData?.startDate && electionData?.endDate) {
-      const now = Date.now()
-      const start = new Date(electionData.startDate).getTime()
-      const end = new Date(electionData.endDate).getTime()
+    // 9. Validasi Kepesertaan dalam Daftar Pemilih Tetap (DPT) Terisolasi per Agenda Aktif
+    const targetDptDocId = `${activeElectionId}_${cleanNim}`
+    let dptSnap = await db.collection('election_dpt').doc(targetDptDocId).get()
 
-      if (!isNaN(start) && now < start) {
-        throw createError({
-          statusCode: 400,
-          statusMessage: 'Waktu pemungutan suara pemilihan belum dibuka.'
-        })
-      }
+    let dptData: Record<string, any> | null = null
 
-      if (!isNaN(end) && now > end) {
-        throw createError({
-          statusCode: 400,
-          statusMessage: 'Waktu pemungutan suara pemilihan telah berakhir.'
-        })
+    if (dptSnap.exists) {
+      const data = dptSnap.data()
+      // Pastikan electionId pada dokumen sama persis dengan activeElectionId
+      if (data && String(data.electionId || '').trim() === activeElectionId) {
+        dptData = data
       }
     }
 
-    // 9. Validasi kepesertaan dalam Daftar Pemilih Tetap (DPT)
-    // Cek ID deterministik `${electionId}_${nim}`
-    const dptDocRef = db.collection('election_dpt').doc(`${activeElectionId}_${cleanNim}`)
-    let dptSnap = await dptDocRef.get()
-
-    // Fallback pencarian berbasis query jika dokumen ID menggunakan format lain
-    if (!dptSnap.exists) {
-      const dptQuerySnap = await db.collection('election_dpt')
+    // Fallback: Jika ID komposit tidak ditemukan, cari dengan query terindeks ketat
+    if (!dptData) {
+      const dptQuerySnap = await db
+        .collection('election_dpt')
         .where('electionId', '==', activeElectionId)
         .where('nim', '==', cleanNim)
         .limit(1)
@@ -193,29 +186,28 @@ export default defineEventHandler(async (event) => {
 
       if (!dptQuerySnap.empty) {
         dptSnap = dptQuerySnap.docs[0]
+        dptData = dptSnap.data()
       }
     }
 
-    if (!dptSnap.exists) {
-      await recordFailedAttempt(ipKey, 10, 300, 900)
-      await recordFailedAttempt(nimKey, 5, 300, 900)
-      console.warn('[Voter Login] Autentikasi ditolak: Mahasiswa tidak terdaftar pada DPT pemilihan aktif.')
+    // ── TAHAP 1: VALIDASI EKSISTENSI DPT (WAJIB SEBELUM CEK hasVoted) ──
+    // Jika pemilih TIDAK ADA di DPT agenda aktif, LANGSUNG lempar error 403 dan hentikan proses!
+    if (!dptData) {
+      await recordFailedAttempt(ipKey, 15, 300, 900)
+      await recordFailedAttempt(nimKey, 8, 300, 900)
       throw createError({
-        statusCode: 401,
-        statusMessage: GENERIC_AUTH_ERROR
+        statusCode: 403,
+        statusMessage: 'Anda tidak terdaftar di DPT pemilihan ini.'
       })
     }
 
-    const dptData = dptSnap.data()
-
-    // Validasi apakah hak suara sudah pernah digunakan
-    if (dptData?.hasVoted === true) {
-      await recordFailedAttempt(ipKey, 10, 300, 900)
-      await recordFailedAttempt(nimKey, 5, 300, 900)
-      console.warn('[Voter Login] Autentikasi ditolak: Hak suara pemilih sudah pernah digunakan.')
+    // ── TAHAP 2: VALIDASI STATUS HAK SUARA (HANYA DIEVALUASI JIKA DPT SUDAH TERBUKTI ADA) ──
+    if (dptData.hasVoted === true) {
+      await recordFailedAttempt(ipKey, 15, 300, 900)
+      await recordFailedAttempt(nimKey, 8, 300, 900)
       throw createError({
-        statusCode: 401,
-        statusMessage: GENERIC_AUTH_ERROR
+        statusCode: 403,
+        statusMessage: 'Anda sudah menggunakan hak suara.'
       })
     }
 
@@ -242,7 +234,7 @@ export default defineEventHandler(async (event) => {
 
     setVoterSessionCookie(event, sessionPayload)
 
-    // Kembalikan HANYA informasi profil publik non-sensitif ke browser
+    // Kembalikan profil pemilih ke browser
     return {
       success: true,
       message: 'Autentikasi pemilih berhasil. Selamat datang di Bilik Suara Digital.',
@@ -258,7 +250,7 @@ export default defineEventHandler(async (event) => {
       }
     }
   } catch (err: any) {
-    // Teruskan H3Error apa adanya
+    // Teruskan H3Error (createError) apa adanya ke frontend
     if (err.statusCode) {
       throw err
     }

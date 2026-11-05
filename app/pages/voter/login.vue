@@ -39,7 +39,6 @@ async function handleLogin() {
 <template>
   <div class="grid grid-cols-1 lg:grid-cols-2">
 
-
           <!-- LEFT -->
           <div
             class="bg-gradient-to-br from-[#f8f6ff] via-[#f5f1ff] to-[#eee9ff] p-6 sm:p-10 lg:p-12 flex flex-col justify-between">
@@ -213,8 +212,14 @@ async function handleLogin() {
                       📅
                     </span>
 
-                    <input id="dob" v-model="dob" name="dob" type="text" placeholder="Contoh : ddmmyyyy atau YYYY-MM-DD"
-                      class="w-full h-12 pl-11 pr-4 bg-slate-50 border border-purple-100 rounded-xl text-sm text-slate-800 focus:outline-none focus:bg-white focus:border-[#582be8] focus:ring-2 focus:ring-purple-100 transition-all duration-200" />
+                    <input
+                      id="dob"
+                      v-model="dob"
+                      name="dob"
+                      type="text"
+                      placeholder="YYYY-MM-DD"
+                      class="w-full h-12 pl-11 pr-4 bg-slate-50 border border-purple-100 rounded-xl text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-[#582be8] focus:ring-2 focus:ring-purple-100 transition-all duration-200"
+                    />
                   </div>
 
                   <p class="text-[11px] text-slate-400 mt-2">

@@ -3,8 +3,12 @@ import {
   collection,
   doc,
   getDocs,
+  getDoc,
   setDoc,
   deleteDoc,
+  query,
+  where,
+  writeBatch,
   type Firestore,
   type DocumentData
 } from 'firebase/firestore'
@@ -172,8 +176,51 @@ export function normalizeFirestoreCandidate(id: string, data: DocumentData): Mas
   return mapped
 }
 
+// ── Helper: Normalisasi Dokumen Firestore ke ElectionCandidateParticipation ──
+export function normalizeFirestoreParticipation(id: string, data: DocumentData): ElectionCandidateParticipation & { _rawSnapshot?: any } {
+  const parseDate = (val: any): string => {
+    if (!val) return new Date().toISOString()
+    if (typeof val.toDate === 'function') {
+      return val.toDate().toISOString()
+    }
+    if (typeof val === 'string') {
+      return val
+    }
+    if (typeof val === 'number') {
+      return new Date(val).toISOString()
+    }
+    return new Date().toISOString()
+  }
+
+  let status: CandidateVerificationStatus = 'Menunggu Berkas'
+  if (data.status === 'Terverifikasi KPU') {
+    status = 'Terverifikasi KPU'
+  } else if (data.status === 'Ditolak') {
+    status = 'Ditolak'
+  } else if (data.status === 'Revisi Dukungan') {
+    status = 'Revisi Dukungan'
+  }
+
+  const ballotNum = data.ballotNumber !== undefined && data.ballotNumber !== null
+    ? String(data.ballotNumber).trim().padStart(2, '0')
+    : ''
+
+  return {
+    id,
+    electionId: String(data.electionId || '').trim(),
+    candidateId: String(data.candidateId || id).trim(),
+    ballotNumber: ballotNum,
+    status,
+    isInBallot: typeof data.isInBallot === 'boolean' ? data.isInBallot : (status === 'Terverifikasi KPU'),
+    votesCount: typeof data.votesCount === 'number' ? data.votesCount : Number(data.votesCount) || 0,
+    createdAt: parseDate(data.createdAt),
+    updatedAt: data.updatedAt ? parseDate(data.updatedAt) : undefined,
+    _rawSnapshot: data
+  }
+}
+
 // ── Helper: Menghapus nilai undefined secara rekursif agar payload Firestore valid ──
-export function cleanFirestorePayload(val: any): any {
+function cleanFirestorePayload(val: any): any {
   if (val === undefined) {
     return undefined
   }
@@ -715,123 +762,131 @@ export const useElectionCandidates = () => {
     }
   }
 
-  // ── Election Candidate Participations Database ───────────────────────────
-  // Menyimpan 10 data relasi seed yang mempertahankan ID awal (`cand-pemXX-XX`)
+  // ── Election Candidate Participations Database (Koleksi Firestore: candidate_participations) ──
+  // State dimulai dari array kosong. Data dimuat secara reaktif dari Firestore melalui fetchCandidateParticipations().
   const electionCandidateParticipationsDatabase = useState<ElectionCandidateParticipation[]>(
     'electionCandidateParticipationsDatabase',
-    () => [
-      // PEM-2025-01
-      {
-        id: 'cand-pem01-01',
-        electionId: 'PEM-2025-01',
-        candidateId: 'mcand-01',
-        ballotNumber: '01',
-        status: 'Terverifikasi KPU',
-        isInBallot: true,
-        votesCount: 1485,
-        createdAt: '2025-01-20T10:00:00'
-      },
-      {
-        id: 'cand-pem01-02',
-        electionId: 'PEM-2025-01',
-        candidateId: 'mcand-02',
-        ballotNumber: '02',
-        status: 'Terverifikasi KPU',
-        isInBallot: true,
-        votesCount: 665,
-        createdAt: '2025-01-22T11:00:00'
-      },
-      {
-        id: 'cand-pem01-03',
-        electionId: 'PEM-2025-01',
-        candidateId: 'mcand-03',
-        ballotNumber: '03',
-        status: 'Terverifikasi KPU',
-        isInBallot: true,
-        votesCount: 0,
-        createdAt: '2025-01-25T14:30:00'
-      },
-
-      // PEM-2025-02
-      {
-        id: 'cand-pem02-01',
-        electionId: 'PEM-2025-02',
-        candidateId: 'mcand-04',
-        ballotNumber: '01',
-        status: 'Terverifikasi KPU',
-        isInBallot: true,
-        votesCount: 780,
-        createdAt: '2025-01-26T09:00:00'
-      },
-      {
-        id: 'cand-pem02-02',
-        electionId: 'PEM-2025-02',
-        candidateId: 'mcand-05',
-        ballotNumber: '02',
-        status: 'Terverifikasi KPU',
-        isInBallot: true,
-        votesCount: 490,
-        createdAt: '2025-01-28T10:00:00'
-      },
-      {
-        id: 'cand-pem02-03',
-        electionId: 'PEM-2025-02',
-        candidateId: 'mcand-06',
-        ballotNumber: '03',
-        status: 'Terverifikasi KPU',
-        isInBallot: true,
-        votesCount: 0,
-        createdAt: '2025-01-30T11:00:00'
-      },
-      {
-        id: 'cand-pem02-04',
-        electionId: 'PEM-2025-02',
-        candidateId: 'mcand-07',
-        ballotNumber: '04',
-        status: 'Menunggu Berkas',
-        isInBallot: false,
-        votesCount: 0,
-        createdAt: '2025-02-02T13:00:00'
-      },
-      {
-        id: 'cand-pem02-05',
-        electionId: 'PEM-2025-02',
-        candidateId: 'mcand-08',
-        ballotNumber: '05',
-        status: 'Revisi Dukungan',
-        isInBallot: false,
-        votesCount: 0,
-        createdAt: '2025-02-03T15:00:00'
-      },
-
-      // PEM-2025-03
-      {
-        id: 'cand-pem03-01',
-        electionId: 'PEM-2025-03',
-        candidateId: 'mcand-09',
-        ballotNumber: '01',
-        status: 'Terverifikasi KPU',
-        isInBallot: true,
-        votesCount: 0,
-        createdAt: '2025-02-05T08:00:00'
-      },
-      {
-        id: 'cand-pem03-02',
-        electionId: 'PEM-2025-03',
-        candidateId: 'mcand-10',
-        ballotNumber: '02',
-        status: 'Terverifikasi KPU',
-        isInBallot: true,
-        votesCount: 0,
-        createdAt: '2025-02-06T09:30:00'
-      }
-    ]
+    () => []
   )
+  const participationsLoading = useState<boolean>('participationsLoading', () => false)
+  const participationsError = useState<string | null>('participationsError', () => null)
+  const participationsLoaded = useState<boolean>('participationsLoaded', () => false)
+
+  const fetchCandidateParticipations = async (
+    electionId?: string,
+    force = false
+  ): Promise<ElectionCandidateParticipation[]> => {
+    if (!import.meta.client) {
+      return electionCandidateParticipationsDatabase.value
+    }
+
+    if (participationsLoaded.value && !force && !electionId && electionCandidateParticipationsDatabase.value.length > 0) {
+      return electionCandidateParticipationsDatabase.value
+    }
+
+    const db = getDb()
+    if (!db) {
+      participationsError.value = 'Layanan Cloud Firestore belum siap atau tidak tersedia di klien.'
+      participationsLoading.value = false
+      return electionCandidateParticipationsDatabase.value
+    }
+
+    participationsLoading.value = true
+    participationsError.value = null
+
+    try {
+      let snapshot
+      if (electionId && electionId !== 'all') {
+        const q = query(
+          collection(db, 'candidate_participations'),
+          where('electionId', '==', electionId)
+        )
+        snapshot = await getDocs(q)
+      } else {
+        const colRef = collection(db, 'candidate_participations')
+        snapshot = await getDocs(colRef)
+      }
+
+      const loaded: ElectionCandidateParticipation[] = snapshot.docs.map(docSnap =>
+        normalizeFirestoreParticipation(docSnap.id, docSnap.data())
+      )
+
+      if (electionId && electionId !== 'all') {
+        // Ganti hanya partisipasi untuk electionId ini secara bersih
+        const otherParts = electionCandidateParticipationsDatabase.value.filter(
+          p => p.electionId !== electionId
+        )
+        electionCandidateParticipationsDatabase.value = [...otherParts, ...loaded]
+      } else {
+        // Pengambilan global / seluruh agenda
+        electionCandidateParticipationsDatabase.value = loaded
+      }
+
+      participationsLoaded.value = true
+      return loaded
+    } catch (err: any) {
+      console.error('[useElectionCandidates] Gagal membaca koleksi candidate_participations dari Firestore:', err)
+      let msg = err.message || 'Gagal memuat data partisipasi kandidat dari Cloud Firestore.'
+      if (err.code === 'permission-denied') {
+        msg = 'Akses Firestore ditolak (Permission Denied). Pastikan akun Anda telah login sebagai admin terdaftar.'
+      } else if (err.code === 'unavailable') {
+        msg = 'Tidak dapat terhubung ke Cloud Firestore. Periksa koneksi internet Anda.'
+      }
+      participationsError.value = msg
+      return electionCandidateParticipationsDatabase.value
+    } finally {
+      participationsLoading.value = false
+    }
+  }
 
   // ── Helper: Join Master with Participation ──────────────────────────────
-  const hydrateParticipation = (part: ElectionCandidateParticipation): ElectionCandidate | null => {
-    const master = masterCandidatesDatabase.value.find(m => m.id === part.candidateId)
+  const hydrateParticipation = (part: ElectionCandidateParticipation & { _rawSnapshot?: any }): ElectionCandidate | null => {
+    let master = masterCandidatesDatabase.value.find(m => m.id === part.candidateId)
+
+    // Jika master belum ada di masterCandidatesDatabase, periksa fallback embedded snapshot dari dokumen Firestore
+    if (!master && part._rawSnapshot) {
+      const emb = part._rawSnapshot
+      const leadRaw = emb.leadCandidate || emb.chairman || emb.ketua || {}
+      const viceRaw = emb.viceCandidate || emb.viceChairman || emb.wakil
+      const leadName = String(leadRaw.name || '').trim()
+      const viceName = viceRaw ? String(viceRaw.name || '').trim() : ''
+      const fallbackName = leadName && viceName
+        ? `${leadName} & ${viceName}`
+        : (leadName || `Kandidat #${part.ballotNumber || part.id}`)
+
+      master = {
+        id: part.candidateId,
+        type: viceRaw ? 'pair' : 'single',
+        name: String(emb.name || emb.fullName || fallbackName).trim(),
+        leadCandidate: {
+          name: leadName || '-',
+          nim: String(leadRaw.nim || '-').trim(),
+          faculty: String(leadRaw.faculty || '-').trim(),
+          major: String(leadRaw.studyProgram || leadRaw.major || '-').trim(),
+          semester: Number(leadRaw.semester) || 6,
+          gpa: Number(leadRaw.gpa) || 3.5
+        },
+        viceCandidate: viceRaw ? {
+          name: viceName || '-',
+          nim: String(viceRaw.nim || '-').trim(),
+          faculty: String(viceRaw.faculty || '-').trim(),
+          major: String(viceRaw.studyProgram || viceRaw.major || '-').trim(),
+          semester: Number(viceRaw.semester) || 6,
+          gpa: Number(viceRaw.gpa) || 3.5
+        } : undefined,
+        tagline: String(emb.tagline || '').trim(),
+        photo: String(emb.photo || leadRaw.photoUrl || '').trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+        color: String(emb.color || '#582be8').trim(),
+        coalition: String(emb.coalition || 'Independen').trim(),
+        visi: String(emb.visi || emb.vision || '').trim(),
+        misi: Array.isArray(emb.misi) ? emb.misi : (Array.isArray(emb.missions) ? emb.missions : []),
+        pillars: Array.isArray(emb.pillars) ? emb.pillars : [],
+        createdAt: part.createdAt
+      }
+    }
+
     if (!master) return null
+
     return {
       ...master,
       id: part.id,
@@ -1196,54 +1251,169 @@ export const useElectionCandidates = () => {
     }
   }
 
-  // ── Mutation Participation: Tetapkan Kandidat ke Election ───────────────
-  const assignCandidatesToElection = (
+  // ── Mutation Participation: Tetapkan Kandidat ke Election di Firestore ───────
+  const assignCandidatesToElection = async (
     electionId: string,
     candidateIds: string[],
     defaultStatus: CandidateVerificationStatus = 'Terverifikasi KPU'
-  ): { added: number; participations: ElectionCandidateParticipation[] } => {
+  ): Promise<{ success: boolean; message: string; added: number; participations: ElectionCandidateParticipation[] }> => {
+    if (!electionId) {
+      return { success: false, message: 'ID agenda pemilihan tidak valid.', added: 0, participations: [] }
+    }
+    if (!candidateIds.length) {
+      return { success: false, message: 'Pilih minimal satu kandidat dari master.', added: 0, participations: [] }
+    }
+
+    const db = getDb()
+    if (!db) {
+      return { success: false, message: 'Layanan Cloud Firestore belum siap atau tidak tersedia.', added: 0, participations: [] }
+    }
+
+    if (masterCandidatesDatabase.value.length === 0) {
+      await fetchMasterCandidates()
+    }
+
     const addedList: ElectionCandidateParticipation[] = []
+    const newDocsToSave: Array<{ docId: string; payload: Record<string, any>; part: ElectionCandidateParticipation }> = []
+
+    const existingCandidates = getCandidatesByElection(electionId)
+    const existingNumbers = new Set(
+      existingCandidates.map(c => parseInt(c.ballotNumber, 10)).filter(n => !isNaN(n))
+    )
+
+    let nextNum = 1
+    const getNextNum = () => {
+      while (existingNumbers.has(nextNum)) {
+        nextNum++
+      }
+      existingNumbers.add(nextNum)
+      return String(nextNum).padStart(2, '0')
+    }
 
     for (const candId of candidateIds) {
-      // 1. Cek apakah master kandidat valid
       const master = masterCandidatesDatabase.value.find(m => m.id === candId)
       if (!master) continue
 
-      // 2. Cek apakah sudah terdaftar di election ini (tidak boleh diduplikasi)
       const alreadyIn = isCandidateInElection(electionId, candId)
       if (alreadyIn) continue
 
-      // 3. Tentukan nomor urut unik
-      const ballotNum = getNextAvailableBallotNumber(electionId)
+      const ballotNum = getNextNum()
       const isInBallot = defaultStatus === 'Terverifikasi KPU'
 
+      // Pola ID dokumen deterministik & stabil: `${electionId}_${candId}`
+      const participationId = `${electionId}_${candId}`
+      const nowIso = new Date().toISOString()
+
       const newPart: ElectionCandidateParticipation = {
-        id: `cand-${electionId.toLowerCase()}-${Date.now().toString().slice(-4)}${Math.floor(Math.random() * 90 + 10)}`,
+        id: participationId,
         electionId,
         candidateId: candId,
         ballotNumber: ballotNum,
         status: defaultStatus,
         isInBallot,
         votesCount: 0,
-        createdAt: new Date().toISOString()
+        createdAt: nowIso,
+        updatedAt: nowIso
       }
 
-      electionCandidateParticipationsDatabase.value.push(newPart)
-      addedList.push(newPart)
+      // Payload lengkap untuk koleksi candidate_participations
+      const payload: Record<string, any> = {
+        id: participationId,
+        electionId,
+        candidateId: candId,
+        ballotNumber: ballotNum,
+        status: defaultStatus,
+        isInBallot,
+        votesCount: 0,
+        createdAt: nowIso,
+        updatedAt: nowIso,
+
+        // Snapshot profil master kandidat untuk interoperabilitas bilik suara dan audit
+        name: master.name,
+        fullName: master.name,
+        type: master.type,
+        tagline: master.tagline || '',
+        photo: master.photo || '',
+        color: master.color || '#582be8',
+        coalition: master.coalition || (master.type === 'pair' ? 'Koalisi Paslon' : 'Independen'),
+        facultyBadge: master.leadCandidate?.faculty || 'Paslon Resmi',
+        visi: master.visi || '',
+        misi: Array.isArray(master.misi) ? master.misi : [],
+        pillars: Array.isArray(master.pillars) ? master.pillars : [],
+        programKerja: Array.isArray(master.pillars)
+          ? master.pillars.map((p, idx) => ({ title: `Pilar ${idx + 1}`, desc: p }))
+          : [],
+        leadCandidate: cleanFirestorePayload(master.leadCandidate),
+        ketua: cleanFirestorePayload(master.leadCandidate),
+        chairman: cleanFirestorePayload(master.leadCandidate)
+      }
+
+      if (master.type === 'pair' && master.viceCandidate) {
+        payload.viceCandidate = cleanFirestorePayload(master.viceCandidate)
+        payload.wakil = cleanFirestorePayload(master.viceCandidate)
+        payload.viceChairman = cleanFirestorePayload(master.viceCandidate)
+      }
+
+      newDocsToSave.push({
+        docId: participationId,
+        payload: cleanFirestorePayload(payload),
+        part: newPart
+      })
     }
 
-    return {
-      added: addedList.length,
-      participations: addedList
+    if (newDocsToSave.length === 0) {
+      return {
+        success: true,
+        message: 'Semua kandidat yang dipilih sudah terdaftar sebelumnya.',
+        added: 0,
+        participations: []
+      }
+    }
+
+    try {
+      const batch = writeBatch(db)
+      for (const item of newDocsToSave) {
+        const docRef = doc(db, 'candidate_participations', item.docId)
+        batch.set(docRef, item.payload)
+      }
+      await batch.commit()
+
+      for (const item of newDocsToSave) {
+        const existingIdx = electionCandidateParticipationsDatabase.value.findIndex(p => p.id === item.docId)
+        if (existingIdx !== -1) {
+          electionCandidateParticipationsDatabase.value[existingIdx] = item.part
+        } else {
+          electionCandidateParticipationsDatabase.value.push(item.part)
+        }
+        addedList.push(item.part)
+      }
+
+      return {
+        success: true,
+        message: `Berhasil menetapkan ${addedList.length} pasangan calon ke agenda ${electionId} di Cloud Firestore.`,
+        added: addedList.length,
+        participations: addedList
+      }
+    } catch (err: any) {
+      console.error('[useElectionCandidates] Gagal menyimpan partisipasi kandidat ke Firestore:', err)
+      const msg = err.code === 'permission-denied'
+        ? 'Akses Firestore ditolak (Permission Denied). Pastikan akun Anda memiliki hak akses admin.'
+        : (err.message || 'Gagal menyimpan partisipasi kandidat ke Cloud Firestore.')
+      return {
+        success: false,
+        message: msg,
+        added: 0,
+        participations: []
+      }
     }
   }
 
-  // ── Mutation Participation: Cabut Keikutsertaan dari Election ───────────
-  const removeCandidateFromElection = (
+  // ── Mutation Participation: Cabut Keikutsertaan dari Election di Firestore ──
+  const removeCandidateFromElection = async (
     electionId: string,
     participationOrCandidateId: string,
     electionStatus?: string
-  ): { success: boolean; message: string } => {
+  ): Promise<{ success: boolean; message: string }> => {
     const check = canDeleteCandidate(participationOrCandidateId, electionStatus)
     if (!check.allowed) {
       return { success: false, message: check.reason || 'Keikutsertaan kandidat tidak dapat dicabut.' }
@@ -1259,22 +1429,40 @@ export const useElectionCandidates = () => {
     }
 
     const removedPart = electionCandidateParticipationsDatabase.value[idx]
-    const master = masterCandidatesDatabase.value.find(m => m.id === removedPart.candidateId)
-    const candName = master ? master.name : `Kandidat #${removedPart.ballotNumber}`
+    const docId = removedPart.id || `${electionId}_${removedPart.candidateId}`
 
-    electionCandidateParticipationsDatabase.value.splice(idx, 1)
+    const db = getDb()
+    if (!db) {
+      return { success: false, message: 'Layanan Cloud Firestore belum siap atau tidak tersedia.' }
+    }
 
-    return {
-      success: true,
-      message: `Kandidat "${candName}" (#${removedPart.ballotNumber}) berhasil dicabut dari agenda ${electionId}. Master kandidat tetap tersimpan aman di Firestore.`
+    try {
+      const docRef = doc(db, 'candidate_participations', docId)
+      await deleteDoc(docRef)
+
+      electionCandidateParticipationsDatabase.value.splice(idx, 1)
+
+      const master = masterCandidatesDatabase.value.find(m => m.id === removedPart.candidateId)
+      const candName = master ? master.name : `Kandidat #${removedPart.ballotNumber}`
+
+      return {
+        success: true,
+        message: `Kandidat "${candName}" (#${removedPart.ballotNumber}) berhasil dicabut dari agenda ${electionId} di Firestore.`
+      }
+    } catch (err: any) {
+      console.error('[useElectionCandidates] Gagal menghapus dokumen candidate_participations di Firestore:', err)
+      const msg = err.code === 'permission-denied'
+        ? 'Akses Firestore ditolak (Permission Denied). Pastikan akun Anda memiliki hak akses admin.'
+        : (err.message || 'Gagal menghapus partisipasi kandidat dari Cloud Firestore.')
+      return { success: false, message: msg }
     }
   }
 
-  // ── Mutation Participation: Update Partisipasi ──────────────────────────
-  const updateCandidateParticipation = (
+  // ── Mutation Participation: Update Partisipasi di Firestore ───────────────
+  const updateCandidateParticipation = async (
     participationId: string,
     updates: Partial<Omit<ElectionCandidateParticipation, 'id' | 'electionId' | 'candidateId' | 'createdAt'>>
-  ): { success: boolean; message: string; participation?: ElectionCandidateParticipation } => {
+  ): Promise<{ success: boolean; message: string; participation?: ElectionCandidateParticipation }> => {
     const idx = electionCandidateParticipationsDatabase.value.findIndex(p => p.id === participationId)
     if (idx === -1) {
       return { success: false, message: 'Data keikutsertaan kandidat tidak ditemukan.' }
@@ -1304,16 +1492,31 @@ export const useElectionCandidates = () => {
       updatedAt: new Date().toISOString()
     }
 
+    const db = getDb()
+    if (db) {
+      try {
+        const docRef = doc(db, 'candidate_participations', existing.id)
+        await setDoc(docRef, cleanFirestorePayload({
+          ballotNumber: updated.ballotNumber,
+          status: updated.status,
+          isInBallot: updated.isInBallot,
+          updatedAt: updated.updatedAt
+        }), { merge: true })
+      } catch (err: any) {
+        console.error('[useElectionCandidates] Gagal memperbarui partisipasi di Firestore:', err)
+        return { success: false, message: `Gagal memperbarui Firestore: ${err.message}` }
+      }
+    }
+
     electionCandidateParticipationsDatabase.value[idx] = updated
     return {
       success: true,
-      message: 'Data keikutsertaan kandidat berhasil diperbarui.',
+      message: 'Data keikutsertaan kandidat berhasil diperbarui di Firestore.',
       participation: updated
     }
   }
 
   // ── Backward-Compatibility Helpers ───────────────────────────────────────
-  // Mempertahankan addCandidate() untuk kode lama atau pendaftaran master sekaligus
   const addCandidate = async (
     data: Omit<ElectionCandidate, 'id' | 'createdAt' | 'isInBallot' | 'participationId' | 'candidateId'> & {
       isInBallot?: boolean
@@ -1324,7 +1527,6 @@ export const useElectionCandidates = () => {
       return { success: false, message: 'ID pemilihan (electionId) wajib disertakan.' }
     }
 
-    // 1. Cek validitas & ketersediaan nomor urut sebelum membuat dokumen Firestore
     const ballotNum = (data.ballotNumber || '').trim().padStart(2, '0')
     if (!ballotNum || ballotNum === '00') {
       return { success: false, message: 'Nomor urut resmi tidak valid atau kosong.' }
@@ -1336,7 +1538,6 @@ export const useElectionCandidates = () => {
       }
     }
 
-    // 2. Cek atau Buat Master Candidate di Firestore
     let masterId = data.candidateId
     if (!masterId) {
       const masterRes = await addMasterCandidate({
@@ -1359,22 +1560,55 @@ export const useElectionCandidates = () => {
       masterId = masterRes.candidate.id
     }
 
-    // 3. Cek apakah sudah terdaftar di election ini
     if (isCandidateInElection(data.electionId, masterId)) {
       return { success: false, message: 'Kandidat ini sudah terdaftar pada agenda pemilihan tersebut.' }
     }
 
     const isInBallot = data.status === 'Terverifikasi KPU'
+    const partDocId = `${data.electionId}_${masterId}`
+    const nowIso = new Date().toISOString()
 
     const newPart: ElectionCandidateParticipation = {
-      id: `cand-${data.electionId.toLowerCase()}-${Date.now().toString().slice(-4)}`,
+      id: partDocId,
       electionId: data.electionId,
       candidateId: masterId,
       ballotNumber: ballotNum,
       status: data.status,
       isInBallot,
       votesCount: data.votesCount || 0,
-      createdAt: new Date().toISOString()
+      createdAt: nowIso,
+      updatedAt: nowIso
+    }
+
+    const db = getDb()
+    if (db) {
+      try {
+        const partDocRef = doc(db, 'candidate_participations', partDocId)
+        const partPayload = cleanFirestorePayload({
+          ...newPart,
+          name: data.name,
+          fullName: data.name,
+          type: data.type,
+          tagline: data.tagline || '',
+          photo: data.photo || '',
+          color: data.color || '#582be8',
+          coalition: data.coalition || (data.type === 'pair' ? 'Koalisi Paslon' : 'Independen'),
+          facultyBadge: data.leadCandidate?.faculty || 'Paslon Resmi',
+          visi: data.visi || '',
+          misi: data.misi || [],
+          pillars: data.pillars || [],
+          leadCandidate: cleanFirestorePayload(data.leadCandidate),
+          ketua: cleanFirestorePayload(data.leadCandidate),
+          chairman: cleanFirestorePayload(data.leadCandidate),
+          viceCandidate: data.viceCandidate ? cleanFirestorePayload(data.viceCandidate) : undefined,
+          wakil: data.viceCandidate ? cleanFirestorePayload(data.viceCandidate) : undefined,
+          viceChairman: data.viceCandidate ? cleanFirestorePayload(data.viceCandidate) : undefined
+        })
+        await setDoc(partDocRef, partPayload)
+      } catch (err: any) {
+        console.error('[useElectionCandidates] Gagal menyimpan dokumen partisipasi ke Firestore:', err)
+        return { success: false, message: `Gagal menyimpan ke Firestore: ${err.message}` }
+      }
     }
 
     electionCandidateParticipationsDatabase.value.push(newPart)
@@ -1382,7 +1616,7 @@ export const useElectionCandidates = () => {
 
     return {
       success: true,
-      message: `Kandidat "${hydrated?.name || data.name}" (#${ballotNum}) berhasil ditambahkan.`,
+      message: `Kandidat "${hydrated?.name || data.name}" (#${ballotNum}) berhasil ditambahkan ke agenda pemilihan dan tersimpan di Firestore.`,
       candidate: hydrated || undefined
     }
   }
@@ -1391,7 +1625,6 @@ export const useElectionCandidates = () => {
     id: string,
     updates: Partial<Omit<ElectionCandidate, 'id' | 'electionId' | 'createdAt'>>
   ): Promise<{ success: boolean; message: string; candidate?: ElectionCandidate }> => {
-    // 1. Cari partisipasi
     let part = electionCandidateParticipationsDatabase.value.find(p => p.id === id)
     if (!part) {
       part = electionCandidateParticipationsDatabase.value.find(p => p.candidateId === id)
@@ -1401,7 +1634,6 @@ export const useElectionCandidates = () => {
       const partIdx = electionCandidateParticipationsDatabase.value.findIndex(p => p.id === part!.id)
       const originalPart = { ...part }
 
-      // Validasi ketersediaan nomor urut terlebih dahulu jika diubah
       if (updates.ballotNumber !== undefined && updates.ballotNumber.trim() !== '') {
         const cleanNum = updates.ballotNumber.trim().padStart(2, '0')
         if (!isBallotNumberAvailable(part.electionId, cleanNum, part.id)) {
@@ -1412,7 +1644,7 @@ export const useElectionCandidates = () => {
         }
       }
 
-      // 1. Update profil master di Cloud Firestore TERLEBIH DAHULU sebelum mengubah state lokal
+      // 1. Update profil master di Cloud Firestore
       const masterUpdates: Partial<MasterCandidate> = {}
       if (updates.name !== undefined) masterUpdates.name = updates.name
       if (updates.type !== undefined) masterUpdates.type = updates.type
@@ -1430,7 +1662,6 @@ export const useElectionCandidates = () => {
       if (Object.keys(masterUpdates).length > 0) {
         const masterRes = await updateMasterCandidate(part.candidateId, masterUpdates)
         if (!masterRes.success) {
-          // Gagal di Firestore: batalkan seluruh proses dan jangan modifikasi partisipasi lokal
           if (partIdx !== -1) {
             electionCandidateParticipationsDatabase.value[partIdx] = originalPart
           }
@@ -1438,19 +1669,48 @@ export const useElectionCandidates = () => {
         }
       }
 
-      // 2. SETELAH Firestore sukses, update data keikutsertaan / nomor urut lokal
+      // 2. Update data keikutsertaan / nomor urut di Firestore dan lokal
       const partUpdates: Partial<ElectionCandidateParticipation> = {}
       if (updates.ballotNumber !== undefined) partUpdates.ballotNumber = updates.ballotNumber
       if (updates.status !== undefined) partUpdates.status = updates.status
       if (updates.isInBallot !== undefined) partUpdates.isInBallot = updates.isInBallot
 
       if (Object.keys(partUpdates).length > 0) {
-        const partRes = updateCandidateParticipation(part.id, partUpdates)
+        const partRes = await updateCandidateParticipation(part.id, partUpdates)
         if (!partRes.success) {
           if (partIdx !== -1) {
             electionCandidateParticipationsDatabase.value[partIdx] = originalPart
           }
           return { success: false, message: partRes.message }
+        }
+      }
+
+      // Sinkronkan juga snapshot data profil ke dokumen candidate_participations
+      const db = getDb()
+      if (db && Object.keys(masterUpdates).length > 0) {
+        try {
+          const docRef = doc(db, 'candidate_participations', part.id)
+          await setDoc(docRef, cleanFirestorePayload({
+            name: updates.name,
+            fullName: updates.name,
+            type: updates.type,
+            tagline: updates.tagline,
+            coalition: updates.coalition,
+            color: updates.color,
+            photo: updates.photo,
+            leadCandidate: updates.leadCandidate ? cleanFirestorePayload(updates.leadCandidate) : undefined,
+            ketua: updates.leadCandidate ? cleanFirestorePayload(updates.leadCandidate) : undefined,
+            chairman: updates.leadCandidate ? cleanFirestorePayload(updates.leadCandidate) : undefined,
+            viceCandidate: updates.viceCandidate ? cleanFirestorePayload(updates.viceCandidate) : undefined,
+            wakil: updates.viceCandidate ? cleanFirestorePayload(updates.viceCandidate) : undefined,
+            viceChairman: updates.viceCandidate ? cleanFirestorePayload(updates.viceCandidate) : undefined,
+            visi: updates.visi,
+            misi: updates.misi,
+            pillars: updates.pillars,
+            updatedAt: new Date().toISOString()
+          }), { merge: true })
+        } catch {
+          // Non-blocking jika pembaruan snapshot tambahan gagal
         }
       }
 
@@ -1462,7 +1722,6 @@ export const useElectionCandidates = () => {
       }
     }
 
-    // Jika yang diedit langsung master candidate ID
     const master = masterCandidatesDatabase.value.find(m => m.id === id)
     if (master) {
       const res = await updateMasterCandidate(id, updates as any)
@@ -1479,16 +1738,14 @@ export const useElectionCandidates = () => {
     candidateIdOrPartId: string,
     electionStatus?: string
   ): Promise<{ success: boolean; message: string }> => {
-    // Cari apakah ini partisipasi
     const part = electionCandidateParticipationsDatabase.value.find(
       p => p.id === candidateIdOrPartId || p.candidateId === candidateIdOrPartId
     )
 
     if (part) {
-      return removeCandidateFromElection(part.electionId, part.id, electionStatus)
+      return await removeCandidateFromElection(part.electionId, part.id, electionStatus)
     }
 
-    // Jika murni master candidate tanpa partisipasi
     return await deleteMasterCandidate(candidateIdOrPartId)
   }
 
@@ -1516,6 +1773,10 @@ export const useElectionCandidates = () => {
     masterCandidatesError,
     fetchMasterCandidates,
     electionCandidateParticipationsDatabase,
+    participationsLoading,
+    participationsError,
+    participationsLoaded,
+    fetchCandidateParticipations,
     candidatesDatabase,
 
     // Master Candidate Operations

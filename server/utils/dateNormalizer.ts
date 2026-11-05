@@ -1,4 +1,8 @@
 /**
+ * Utilitas Normalisasi dan Validasi Tanggal untuk Sistem A-Vote
+ */
+
+/**
  * Memvalidasi apakah string tanggal lahir sesuai format YYYY-MM-DD,
  * merupakan tanggal kalender yang valid, dan tidak berada di masa depan.
  */
@@ -37,11 +41,125 @@ export function isValidBirthDate(dateStr?: string | null): boolean {
 }
 
 /**
- * Menormalisasi berbagai format tanggal lahir input pemilih menjadi format baku ISO YYYY-MM-DD.
- * Mendukung format:
- * - YYYY-MM-DD (misal: 2003-08-17)
- * - DD-MM-YYYY atau DD/MM/YYYY (misal: 17-08-2003 atau 17/08/2003)
- * - 8 digit angka DDMMYYYY (misal: 17082003) atau YYYYMMDD (misal: 20030817)
+ * Format objek Date menjadi string YYYY-MM-DD menggunakan tanggal lokal kalender
+ */
+function formatDateToYYYYMMDD(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+/**
+ * Menormalisasi berbagai tipe data tanggal lahir dari Firestore
+ * (Timestamp Firestore, JavaScript Date, maupun String) ke format standar "YYYY-MM-DD".
+ *
+ * Mendukung input:
+ * - Firebase Timestamp (.toDate() atau properti .seconds)
+ * - Objek JavaScript Date
+ * - String ISO ("2002-04-28T00:00:00.000Z")
+ * - String "YYYY-MM-DD" atau "YYYY/MM/DD"
+ * - String "MM/DD/YYYY" (misal: "04/28/2002")
+ * - String "DD-MM-YYYY" (misal: "28-04-2002")
+ */
+export function normalizeFirestoreBirthDate(raw: any): string | null {
+  if (raw === null || raw === undefined) {
+    return null
+  }
+
+  // 1. Firebase Timestamp (.toDate() atau properti .seconds)
+  if (typeof raw === 'object') {
+    if (typeof raw.toDate === 'function') {
+      try {
+        const date = raw.toDate()
+        if (date instanceof Date && !isNaN(date.getTime())) {
+          return formatDateToYYYYMMDD(date)
+        }
+      } catch {
+        // Fallback jika pemanggilan .toDate gagal
+      }
+    }
+    if (typeof raw.seconds === 'number') {
+      const date = new Date(raw.seconds * 1000)
+      if (!isNaN(date.getTime())) {
+        return formatDateToYYYYMMDD(date)
+      }
+    }
+  }
+
+  // 2. JavaScript Date instance
+  if (raw instanceof Date) {
+    if (!isNaN(raw.getTime())) {
+      return formatDateToYYYYMMDD(raw)
+    }
+    return null
+  }
+
+  // 3. String representation
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim()
+    if (!trimmed) return null
+
+    // 3a. String format ISO yang memuat timestamp waktu (e.g. "2002-04-28T00:00:00.000Z")
+    if (trimmed.includes('T')) {
+      const datePart = trimmed.split('T')[0]
+      if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+        return isValidBirthDate(datePart) ? datePart : null
+      }
+    }
+
+    // 3b. Format YYYY-MM-DD atau YYYY/MM/DD
+    const ymdMatch = /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/.exec(trimmed)
+    if (ymdMatch) {
+      const year = ymdMatch[1]
+      const month = ymdMatch[2].padStart(2, '0')
+      const day = ymdMatch[3].padStart(2, '0')
+      const iso = `${year}-${month}-${day}`
+      return isValidBirthDate(iso) ? iso : null
+    }
+
+    // 3c. Format dengan pemisah strip atau garis miring (DD-MM-YYYY, MM/DD/YYYY, DD/MM/YYYY)
+    const sepMatch = /^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/.exec(trimmed)
+    if (sepMatch) {
+      const part1 = Number(sepMatch[1])
+      const part2 = Number(sepMatch[2])
+      const year = sepMatch[3]
+
+      let day: string
+      let month: string
+
+      // Jika part2 > 12, dipastikan part1 adalah bulan dan part2 adalah hari (misal: "04/28/2002")
+      if (part2 > 12 && part1 <= 12) {
+        month = String(part1).padStart(2, '0')
+        day = String(part2).padStart(2, '0')
+      }
+      // Jika part1 > 12, dipastikan part1 adalah hari dan part2 adalah bulan (misal: "28-04-2002")
+      else if (part1 > 12 && part2 <= 12) {
+        day = String(part1).padStart(2, '0')
+        month = String(part2).padStart(2, '0')
+      }
+      // Default asumsi format Indonesia DD-MM-YYYY jika ambigu
+      else {
+        day = String(part1).padStart(2, '0')
+        month = String(part2).padStart(2, '0')
+      }
+
+      const iso = `${year}-${month}-${day}`
+      return isValidBirthDate(iso) ? iso : null
+    }
+
+    // 3d. 8 digit numerik tanpa pemisah (DDMMYYYY atau YYYYMMDD)
+    if (/^\d{8}$/.test(trimmed)) {
+      return normalizeDateInput(trimmed)
+    }
+  }
+
+  return null
+}
+
+/**
+ * Menormalisasi berbagai format tanggal lahir input dari formulir login klien
+ * menjadi format baku ISO "YYYY-MM-DD".
  */
 export function normalizeDateInput(input?: string | null): string | null {
   if (!input || typeof input !== 'string') {
@@ -55,12 +173,24 @@ export function normalizeDateInput(input?: string | null): string | null {
     return isValidBirthDate(cleaned) ? cleaned : null
   }
 
-  // 2. Format dengan pemisah strip atau garis miring (DD-MM-YYYY atau DD/MM/YYYY)
+  // 2. Format dengan pemisah strip atau garis miring (DD-MM-YYYY atau MM/DD/YYYY)
   const separatorMatch = /^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/.exec(cleaned)
   if (separatorMatch) {
-    const day = separatorMatch[1].padStart(2, '0')
-    const month = separatorMatch[2].padStart(2, '0')
+    const part1 = Number(separatorMatch[1])
+    const part2 = Number(separatorMatch[2])
     const year = separatorMatch[3]
+
+    let day: string
+    let month: string
+
+    if (part2 > 12 && part1 <= 12) {
+      month = String(part1).padStart(2, '0')
+      day = String(part2).padStart(2, '0')
+    } else {
+      day = String(part1).padStart(2, '0')
+      month = String(part2).padStart(2, '0')
+    }
+
     const iso = `${year}-${month}-${day}`
     return isValidBirthDate(iso) ? iso : null
   }
@@ -69,7 +199,7 @@ export function normalizeDateInput(input?: string | null): string | null {
   if (/^\d{8}$/.test(cleaned)) {
     const currentYear = new Date().getFullYear()
 
-    // Cek apakah diawali 4 digit tahun yang wajar (YYYYMMDD)
+    // Cek apakah diawali 4 digit tahun wajar (YYYYMMDD)
     const first4 = cleaned.slice(0, 4)
     const first4Year = Number(first4)
     if (first4Year >= 1940 && first4Year <= currentYear) {

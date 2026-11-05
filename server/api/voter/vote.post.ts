@@ -82,10 +82,11 @@ export default defineEventHandler(async (event) => {
   }
 
   // 6. Transaksi Atomik Firestore
-  const dptDocId = session.dptId || `${session.electionId}_${session.nim}`
-  const dptRef = db.collection('election_dpt').doc(dptDocId)
+  // Hak suara diisolasi ketat per agenda menggunakan Document ID: `${activeElectionId}_${nim}`
+  const targetDptDocId = `${activeElectionId}_${session.nim}`
+  const dptRef = db.collection('election_dpt').doc(targetDptDocId)
   const candidateRef = db.collection('candidate_participations').doc(candidateId)
-  const electionRef = db.collection('elections').doc(session.electionId)
+  const electionRef = db.collection('elections').doc(activeElectionId)
 
   const sessionSecret = process.env.VOTER_SESSION_SECRET || 'a-voting-dev-secret-key-minimum-32-chars-for-local-testing-only'
 
@@ -107,6 +108,14 @@ export default defineEventHandler(async (event) => {
       }
 
       const dptData = dptSnap.data()!
+
+      // Validasi Integritas Agenda DPT: pastikan dokumen benar-benar milik activeElectionId
+      if (dptData.electionId !== activeElectionId || dptData.nim !== session.nim) {
+        throw createError({
+          statusCode: 403,
+          statusMessage: 'Dokumen DPT tidak cocok dengan agenda pemilihan yang sedang aktif.'
+        })
+      }
 
       // b. Validasi Agenda Pemilihan
       if (!electionSnap.exists) {

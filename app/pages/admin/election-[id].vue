@@ -57,7 +57,9 @@ onMounted(async () => {
   await Promise.all([
     fetchElectionById(rawId.value),
     fetchActiveElection(),
-    loadElectionDptData(rawId.value)
+    loadElectionDptData(rawId.value),
+    fetchMasterCandidates(),
+    fetchCandidateParticipations(rawId.value)
   ])
 })
 
@@ -68,7 +70,8 @@ watch(
     if (newId && newId !== 'active') {
       await Promise.all([
         fetchElectionById(newId),
-        loadElectionDptData(newId)
+        loadElectionDptData(newId),
+        fetchCandidateParticipations(newId)
       ])
     }
   }
@@ -574,9 +577,26 @@ function triggerToast(msg: string) {
 // ─── Candidate Management per Election (Composable) ───────────────────
 const {
   masterCandidatesDatabase,
+  masterCandidatesLoading,
+  masterCandidatesError,
   fetchMasterCandidates,
+  fetchCandidateParticipations,
+  participationsLoading,
+  participationsError,
+  electionCandidateParticipationsDatabase,
+  candidatesDatabase,
+  getAllMasterCandidates,
+  getMasterCandidateById,
+  addMasterCandidate,
+  updateMasterCandidate,
+  deleteMasterCandidate,
+  canDeleteMasterCandidate,
+  getMasterCandidateParticipations,
   getCandidatesByElection,
+  getCandidateById,
   getCandidateStats,
+  isBallotNumberAvailable,
+  updateCandidateParticipation,
   isCandidateInElection,
   getUnassignedMasterCandidates,
   assignCandidatesToElection,
@@ -588,7 +608,10 @@ const {
 } = useElectionCandidates()
 
 onMounted(async () => {
-  await fetchMasterCandidates()
+  await Promise.all([
+    fetchMasterCandidates(),
+    fetchCandidateParticipations(rawId.value)
+  ])
 })
 
 // ─── Modal State: Pilih Kandidat Master ke Election ───────────────────
@@ -655,13 +678,17 @@ function openSelectCandidateModal() {
   showSelectCandidateModal.value = true
 }
 
-function submitAssignCandidates() {
+async function submitAssignCandidates() {
   if (!currentElection.value || selectedCandidateIdsToAdd.value.length === 0) return
-  const result = assignCandidatesToElection(currentElection.value.id, selectedCandidateIdsToAdd.value)
-  if (result.added > 0) {
-    triggerToast(`Berhasil menetapkan ${result.added} kandidat ke pemilihan #${currentElection.value.id}.`)
+  const result = await assignCandidatesToElection(currentElection.value.id, selectedCandidateIdsToAdd.value)
+  if (result.success) {
+    if (result.added > 0) {
+      triggerToast(result.message)
+    } else {
+      triggerToast('Tidak ada kandidat baru yang ditambahkan.')
+    }
   } else {
-    triggerToast('Tidak ada kandidat baru yang ditambahkan.')
+    triggerToast(`Gagal: ${result.message}`)
   }
   selectedCandidateIdsToAdd.value = []
   showSelectCandidateModal.value = false
@@ -944,9 +971,9 @@ function promptDeleteCandidate(c: ElectionCandidate) {
   showDeleteCandidateModal.value = true
 }
 
-function confirmDeleteCandidate() {
+async function confirmDeleteCandidate() {
   if (!candidateToDelete.value || !currentElection.value) return
-  const res = removeCandidateFromElection(
+  const res = await removeCandidateFromElection(
     currentElection.value.id,
     candidateToDelete.value.id,
     currentElection.value.status
@@ -1711,8 +1738,26 @@ async function confirmCloseElection() {
         </div>
       </div>
 
+      <!-- Loading State -->
+      <div v-if="participationsLoading" class="p-10 rounded-2xl border border-purple-100 bg-white text-center space-y-3 shadow-sm">
+        <div class="w-12 h-12 rounded-2xl bg-purple-50 text-[#582be8] flex items-center justify-center mx-auto animate-spin">
+          <span class="material-symbols-outlined text-[28px]">sync</span>
+        </div>
+        <h4 class="text-sm font-bold text-slate-800">Menghubungkan ke Cloud Firestore...</h4>
+        <p class="text-xs text-slate-400">Memuat daftar partisipasi kandidat untuk agenda pemilihan ini.</p>
+      </div>
+
+      <!-- Error State -->
+      <div v-else-if="participationsError" class="p-6 rounded-2xl border border-red-200 bg-red-50 text-center space-y-2 shadow-sm">
+        <div class="w-10 h-10 rounded-xl bg-red-100 text-red-600 flex items-center justify-center mx-auto">
+          <span class="material-symbols-outlined text-[22px]">error</span>
+        </div>
+        <h4 class="text-sm font-bold text-red-900">Gagal Memuat Partisipasi Kandidat</h4>
+        <p class="text-xs text-red-700">{{ participationsError }}</p>
+      </div>
+
       <!-- Candidate Cards Grid -->
-      <div v-if="currentElectionCandidates.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div v-else-if="currentElectionCandidates.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <div
           v-for="c in currentElectionCandidates"
           :key="c.id"
