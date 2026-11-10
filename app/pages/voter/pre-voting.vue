@@ -8,7 +8,45 @@ definePageMeta({
 })
 
 const { voter } = useVoterSession()
-const agreed = ref(false)
+
+// --- State Liveness & Persetujuan ---
+const isAgreed = ref(false)
+const isFaceVerified = useState<boolean>('liveness_verified', () => false)
+const showLivenessScanner = ref(false)
+
+// 1. Handler saat Checkbox dicentang / diubah
+const handleCheckboxChange = () => {
+  if (isAgreed.value) {
+    // Jika dicentang, segera buka modal kamera liveness
+    showLivenessScanner.value = true
+  } else {
+    // Jika user membatalkan centang, reset status verifikasi wajah
+    isFaceVerified.value = false
+  }
+}
+
+// 2. Handler saat Liveness Berhasil
+const onLivenessSuccess = () => {
+  showLivenessScanner.value = false
+  isFaceVerified.value = true
+  // isAgreed tetap bernilai true
+}
+
+// 3. Handler saat Liveness Gagal atau Dibatalkan
+const onLivenessFailed = (reason?: string) => {
+  if (reason) {
+    console.warn('[Liveness] Verifikasi dibatalkan atau gagal:', reason)
+  }
+  showLivenessScanner.value = false
+  isAgreed.value = false
+  isFaceVerified.value = false
+}
+
+// 4. Handler navigasi saat tombol ungu diklik
+const handleProceed = () => {
+  if (!isFaceVerified.value) return
+  navigateTo('/voter/voting')
+}
 </script>
 
 <template>
@@ -741,16 +779,27 @@ const agreed = ref(false)
 
         <!-- Agreement -->
         <label
-          class="group flex items-start gap-4 p-4 rounded-xl bg-slate-50 hover:bg-purple-50/50 transition-colors cursor-pointer">
-
-          <input v-model="agreed" type="checkbox"
-            class="mt-1 w-5 h-5 rounded border-purple-200 text-[#582be8] focus:ring-purple-200 shrink-0 cursor-pointer" />
+          class="group flex items-start gap-4 p-4 rounded-xl bg-slate-50 hover:bg-purple-50/50 transition-colors cursor-pointer"
+        >
+          <input
+            v-model="isAgreed"
+            type="checkbox"
+            @change="handleCheckboxChange"
+            class="mt-1 w-5 h-5 rounded border-purple-200 text-[#582be8] focus:ring-purple-200 shrink-0 cursor-pointer"
+          />
 
           <div class="flex flex-col gap-1">
-
-            <span class="text-base font-bold text-slate-900 group-hover:text-[#582be8] transition-colors">
-              Pernyataan Kepatuhan &amp; Integritas Pemilih
-            </span>
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="text-base font-bold text-slate-900 group-hover:text-[#582be8] transition-colors">
+                Pernyataan Kepatuhan &amp; Integritas Pemilih
+              </span>
+              <span
+                v-if="isFaceVerified"
+                class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800"
+              >
+                ✓ Wajah Terverifikasi
+              </span>
+            </div>
 
             <span class="text-sm text-slate-500 leading-relaxed">
               Saya menyatakan dengan sadar bahwa saya telah membaca,
@@ -760,56 +809,66 @@ const agreed = ref(false)
               tanpa paksaan, dan bersedia menerima sanksi apabila
               melanggar peraturan perundang-undangan yang berlaku.
             </span>
-
           </div>
-
         </label>
-
 
         <!-- Actions -->
         <div class="flex flex-col sm:flex-row items-center justify-between gap-4 pt-1">
-
           <!-- Back -->
-          <NuxtLink to="/voter/login"
-            class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-slate-50 text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition font-semibold text-sm">
-            ←
-
-            Kembali ke Autentikasi
+          <NuxtLink
+            to="/voter/login"
+            class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-slate-50 text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition font-semibold text-sm"
+          >
+            ← Kembali ke Autentikasi
           </NuxtLink>
-
 
           <!-- Right -->
           <div class="w-full sm:w-auto flex flex-col sm:flex-row items-center gap-4">
-
             <div class="hidden md:flex items-center gap-2 text-[10px] font-mono text-slate-400">
-              🔒
-
-              256-Bit TLS &amp; MPC Ledger Validated
+              🔒 256-Bit TLS &amp; MPC Ledger Validated
             </div>
 
-
-            <!-- Proceed -->
-            <NuxtLink to="/voter/voting" :class="[
-              'w-full sm:w-auto inline-flex items-center justify-center gap-3 px-8 py-3 rounded-xl font-semibold text-sm transition-all',
-              agreed
-                ? 'bg-[#582be8] text-white shadow-md shadow-purple-600/20 hover:bg-[#471ec7] hover:shadow-lg active:scale-95'
-                : 'bg-[#582be8] text-white opacity-50 cursor-not-allowed pointer-events-none'
-            ]">
-              <span>
-                Setujui &amp; Masuk ke Bilik Suara
-              </span>
-
-              <span class="text-lg">
-                →
-              </span>
-            </NuxtLink>
-
+            <!-- Proceed Button (Hanya aktif jika wajah sudah terverifikasi) -->
+            <button
+              type="button"
+              :disabled="!isFaceVerified"
+              @click="handleProceed"
+              :class="[
+                'w-full sm:w-auto inline-flex items-center justify-center gap-3 px-8 py-3 rounded-xl font-semibold text-sm transition-all',
+                isFaceVerified
+                  ? 'bg-[#582be8] text-white shadow-md shadow-purple-600/20 hover:bg-[#471ec7] hover:shadow-lg active:scale-95 cursor-pointer'
+                  : 'bg-[#582be8] text-white opacity-50 cursor-not-allowed'
+              ]"
+            >
+              <span>Setujui &amp; Masuk ke Bilik Suara</span>
+              <span class="text-lg">→</span>
+            </button>
           </div>
-
         </div>
-
       </div>
-
     </section>
+
+    <!-- Modal Scanner Liveness Detection (Muncul otomatis saat checkbox dicentang) -->
+    <Teleport to="body">
+      <div
+        v-if="showLivenessScanner"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-xs animate-fade-in"
+      >
+        <div class="relative w-full max-w-md">
+          <ClientOnly>
+            <LivenessAuth
+              @verified="onLivenessSuccess"
+              @failed="onLivenessFailed"
+            />
+            <template #fallback>
+              <div class="p-8 bg-white rounded-3xl shadow-xl flex flex-col items-center">
+                <div class="w-10 h-10 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+                <p class="text-xs text-slate-500 font-medium">Menyiapkan kamera biometrik...</p>
+              </div>
+            </template>
+          </ClientOnly>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>

@@ -4,7 +4,7 @@ import { useVoterSession } from '~/composables/useVoterSession'
 
 definePageMeta({
   layout: false,
-  middleware: 'voter-auth'
+  middleware: ['voter-auth', 'liveness']
 })
 
 const { voter, receipt, getClientCsrfToken } = useVoterSession()
